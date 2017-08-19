@@ -5,13 +5,15 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
+	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/tracker/setting"
-
-	"flag"
 )
+
+var app_setting = setting.Setting{}
 
 // 解析命令行参数配置
 func ParseCmd() error {
@@ -21,9 +23,12 @@ func ParseCmd() error {
 	btServ := flag.String("btserv",
 		"0.0.0.0:80",
 		"bt server ip and port")
-	trackerServ := flag.String("tracserv",
+	trackerServ := flag.String("traceserv",
 		"0.0.0.0:33000",
 		"tracker server ip and port for cluster")
+	logFile := flag.String("logfile",
+		"/var/log/uvdt-trace.log",
+		"log file")
 
 	flag.Parse()
 
@@ -31,21 +36,34 @@ func ParseCmd() error {
 	log.Printf("cluster ip list: %s", *clusterList)
 	log.Printf("bt server ip port: %s", *btServ)
 	log.Printf("tracker server ip port: %s", *trackerServ)
+	log.Printf("log file: %s", *logFile)
 
 	// 创建配置对象
-	setting = setting.Setting{}
-	setting.SetClusterList(clusterList)
+	app_setting.SetLogFile(*logFile)
+	err := app_setting.SetClusterList(*clusterList)
+	if err == nil {
+		err = app_setting.SetBtServ(*btServ)
+	}
+	if err == nil {
+		err = app_setting.SetTraceServ(*trackerServ)
+	}
 
-	return nil
+	return err
 }
 
 // 初始化设置
 func init() {
-	// 设置日志
-	log.SetOutput(os.Stdout)
-
 	// 解析命令行参数
-	ParseCmd()
+	err := ParseCmd()
+	if err != nil {
+		log.Printf("Error: %s", err)
+		flag.Usage()
+		os.Exit(-1)
+	}
+
+	// 设置日志
+	logger.LoggerInit(app_setting.GetLogFile())
+
 }
 
 func Parse() {
