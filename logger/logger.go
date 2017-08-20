@@ -6,18 +6,18 @@ package logger
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 //---------------------------------------------------------------
 // Logger 设置
-type uvdtLoger struct {
+type uvdtLogger struct {
 	Logger *log.Logger
 }
 
-var Logger uvdtLoger
+var Logger uvdtLogger
 
 func LoggerInit(logFile string) error {
 	if len(logFile) == 0 {
@@ -32,22 +32,43 @@ func LoggerInit(logFile string) error {
 		return err
 	}
 
-	Logger.Logger = log.New(io.MultiWriter(file, os.Stderr),
-		"",
-		log.Ldate|log.Ltime|log.Lshortfile)
+	// Logger.Logger = log.New(io.MultiWriter(file, os.Stderr),
+	Logger.Logger = log.New(file, "", log.Ldate|log.Ltime|log.Lshortfile)
 
 	return nil
 }
 
-func (l *uvdtLoger) Printf(format string, v ...interface{}) {
+func (l *uvdtLogger) Printf(format string, v ...interface{}) {
 	l.Logger.Output(3, fmt.Sprintf(format, v...))
 }
 
-func Info(msg string) {
-	Logger.Printf("[I]: %s\n", msg)
+func NewAgent() LogAgent {
+	logAgent := LogAgent{
+		logger_impl: &Logger,
+		buffers:     []string{},
+		status:      "[I]: ",
+	}
+	return logAgent
 }
 
-func Err(msg string) error {
-	Logger.Printf("[E]: %s\n", msg)
+// log 记录代理，缓存单次请求过程中的日志，在处理函数结束时记录日志
+type LogAgent struct {
+	logger_impl *uvdtLogger
+	buffers     []string
+	status      string
+}
+
+func (logAgent *LogAgent) Info(msg string) {
+	logAgent.buffers = append(logAgent.buffers, fmt.Sprintf("%s", msg))
+}
+
+func (logAgent *LogAgent) Err(msg string) error {
+	logAgent.buffers = append(logAgent.buffers, fmt.Sprintf("[E] %s", msg))
+	logAgent.status = "[E]: "
 	return errors.New("msg")
+}
+
+func (logAgent *LogAgent) EndLog() {
+	msg := logAgent.status + strings.Join(logAgent.buffers, " | ")
+	logAgent.logger_impl.Logger.Printf("%s\n", msg)
 }
