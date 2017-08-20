@@ -12,8 +12,8 @@ import (
 
 // 服务类型 ip, port
 type Serv struct {
-	ip   string
-	port int
+	Ip   string
+	Port int
 }
 
 // 配置类型
@@ -22,6 +22,12 @@ type Setting struct {
 	btServ       Serv
 	trackerServ  Serv
 	clusterServs []Serv
+}
+
+var AppSetting Setting
+
+func init() {
+	AppSetting = Setting{}
 }
 
 // 获取逗号分割的字符串参数
@@ -36,8 +42,8 @@ func (set *Setting) SetClusterList(value string) error {
 			return errors.New(fmt.Sprintf("Cluster list ip err: %s", curValue))
 		}
 		curSet := Serv{
-			ip:   ipport[0],
-			port: port,
+			Ip:   ipport[0],
+			Port: port,
 		}
 		set.clusterServs = append(set.clusterServs, curSet)
 	}
@@ -61,6 +67,10 @@ func (set *Setting) SetBtServ(value string) error {
 	return err
 }
 
+func (set *Setting) GetBtServ() Serv {
+	return set.btServ
+}
+
 // 设置 trace server
 func (set *Setting) SetTraceServ(value string) error {
 	trackerServ, err := str2Serv(value)
@@ -68,6 +78,10 @@ func (set *Setting) SetTraceServ(value string) error {
 		set.trackerServ = trackerServ
 	}
 	return err
+}
+
+func (set *Setting) GetTrackerServ() Serv {
+	return set.trackerServ
 }
 
 // 获取 Serv 对象
@@ -81,8 +95,8 @@ func str2Serv(value string) (Serv, error) {
 		return Serv{}, errors.New(fmt.Sprintf("ip，port err: %s", value))
 	}
 	serv := Serv{
-		ip:   ipport[0],
-		port: port,
+		Ip:   ipport[0],
+		Port: port,
 	}
 	return serv, nil
 }
