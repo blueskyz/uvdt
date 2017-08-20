@@ -37,7 +37,4 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Info("This is Info 1")
 	fmt.Fprintf(w, fmt.Sprintf("bt http serv %s", r.RequestURI))
-	log.Info("This is Info 1")
-	log.Err("This is Err 1")
-	log.Err("This is Err 1")
 }

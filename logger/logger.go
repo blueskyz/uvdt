@@ -44,9 +44,8 @@ func (l *uvdtLogger) Printf(format string, v ...interface{}) {
 
 func NewAgent() LogAgent {
 	logAgent := LogAgent{
-		logger_impl: &Logger,
-		buffers:     []string{},
-		status:      "[I]: ",
+		buffers: []string{},
+		status:  "[I]: ",
 	}
 	return logAgent
 }
@@ -70,5 +69,5 @@ func (logAgent *LogAgent) Err(msg string) error {
 
 func (logAgent *LogAgent) EndLog() {
 	msg := logAgent.status + strings.Join(logAgent.buffers, " | ")
-	logAgent.logger_impl.Logger.Printf("%s\n", msg)
+	Logger.Printf("%s\n", msg)
 }
