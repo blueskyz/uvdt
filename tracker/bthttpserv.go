@@ -14,6 +14,8 @@ import (
 
 func BtHttpServ() {
 	log := logger.NewAgent()
+	defer log.EndLog()
+
 	// 设置 bt http server 路由
 	btHttpServMux := http.NewServeMux()
 	btHttpServMux.HandleFunc("/hello", btHelloHandler)
@@ -47,16 +49,16 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 		log.Err("arguments err")
 	}
 
-	info_hash := values.Get("info_hash")
-	if len(info_hash) == 0 {
-		log.Err("info_hash is empty")
+	infoHash := values.Get("info_hash")
+	if len(infoHash) == 0 {
+		log.Err("infoHash is empty")
 	}
 
 	compact := values.Get("compact")
 
-	peer_id := values.Get("peer_id")
-	if len(peer_id) == 0 {
-		log.Err("peer_id is empty")
+	peerId := values.Get("peer_id")
+	if len(peerId) == 0 {
+		log.Err("peerId is empty")
 	}
 
 	ip := strings.Split(r.RemoteAddr, ":")[0]
@@ -64,10 +66,20 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 	if len(port) == 0 {
 		log.Err("port is empty")
 	}
-	log.Info(fmt.Sprintf("info_hash: %s, compact: %s, peer_id: %s, ip: %s, port: %s",
-		info_hash, compact, peer_id, ip, port))
+	log.Info(fmt.Sprintf("infoHash: %s, compact: %s, peerId: %s, ip: %s, port: %s",
+		infoHash, compact, peerId, ip, port))
 
 	// 检查保存 node 信息
 
 	// 获取 peer list
+	info := InfoHash{
+		infoHash: infoHash,
+		name:     "",
+		peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
+	}
+	peers, err := info.GetInfoHash(infoHash)
+	if err != nil {
+		log.Err(fmt.Sprintf("Get info hash err: %s", err))
+	}
+	fmt.Printf("peers: %v\n", peers)
 }

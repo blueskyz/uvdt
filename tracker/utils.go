@@ -27,7 +27,7 @@ type peer struct {
 
 func InitDB(ipaddr string, user string, passwd string) error {
 	dbconn, err := sql.Open("mysql",
-		fmt.Sprintf("%s:%s@tcp(%s)/uvdt?charset=utf-8", user, passwd, ipaddr))
+		fmt.Sprintf("%s:%s@tcp(%s)/uvdt?charset=utf8mb4", user, passwd, ipaddr))
 	if err != nil {
 		return err
 	} else {
@@ -36,17 +36,21 @@ func InitDB(ipaddr string, user string, passwd string) error {
 	return nil
 }
 
-func InitRedis(ipaddr string, db string) {
-	RdsPool = newPool(ipaddr, db)
+func InitRedis(ipaddr string, passwd string, db string) {
+	RdsPool = newPool(ipaddr, passwd, db)
 }
 
-func newPool(addr string, db string) *redis.Pool {
+func newPool(addr string, passwd string, db string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", addr)
 			if err != nil {
+				return nil, err
+			}
+			if _, err := c.Do("AUTH", passwd); err != nil {
+				c.Close()
 				return nil, err
 			}
 			if _, err := c.Do("SELECT", db); err != nil {

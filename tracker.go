@@ -74,7 +74,7 @@ func init() {
 	}
 
 	// 设置数缓存
-	tracker.InitRedis("127.0.0.1:6379", "11")
+	tracker.InitRedis("127.0.0.1:6379", "1", "3")
 }
 
 func main() {
