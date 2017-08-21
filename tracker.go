@@ -63,10 +63,26 @@ func init() {
 
 	// 设置日志
 	logger.LoggerInit(setting.AppSetting.GetLogFile())
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// 设置数据库
+	err = tracker.InitDB("127.0.0.1:3306", "root", "1")
+	if err != nil {
+		log.Err(err.Error())
+	}
+
+	// 设置数缓存
+	tracker.InitRedis("127.0.0.1:6379", "11")
 }
 
 func main() {
-	log.Printf("hello world %s", "serv")
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	log.Info("hello world serv")
 
 	// 启动管理服务器
 	go tracker.TrackerHttpServ()

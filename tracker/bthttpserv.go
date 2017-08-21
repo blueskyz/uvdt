@@ -66,4 +66,8 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Info(fmt.Sprintf("info_hash: %s, compact: %s, peer_id: %s, ip: %s, port: %s",
 		info_hash, compact, peer_id, ip, port))
+
+	// 检查保存 node 信息
+
+	// 获取 peer list
 }
