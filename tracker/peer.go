@@ -44,6 +44,7 @@ func (info *InfoHash) GetInfoHash(infoHash string) ([]string, error) {
 
 		if !find {
 			rds.Do("LPUSH", infoHash, info.peer)
+			peers = append(peers, info.peer)
 		}
 		return peers, nil
 	} else {
@@ -80,6 +81,7 @@ func (info *InfoHash) GetInfoHash(infoHash string) ([]string, error) {
 			}
 		}
 		if !find {
+			rds.Send("LPUSH", infoHash, info.peer)
 			peers = append(peers, info.peer)
 		}
 		rds.Flush()
