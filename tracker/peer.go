@@ -87,7 +87,11 @@ func (info *InfoHash) GetPeersFromInfoHash(infoHash string) ([]string, error) {
 			// 5. 没有找到 info hash 信息，保存 info hash 信息到数据库
 			peers_value, err := json.Marshal([]string{info.peer})
 			stmp, err := DB.Prepare(`insert into 
-									 infohash(infohash, name, peers)
+									 infohash(infohash,
+											  name,
+											  peers,
+											  ctime,
+											  mtime)
 									 values(?,
 											?,
 											?,
