@@ -4,10 +4,11 @@
 use uvdt
 
 -- create torrent table
-create table if not exists `torrent` (
-    `infohash` varchar(20) primary key comment '20 bit sha1',
+create table if not exists `infohash` (
+    `infohash` varchar(64) primary key comment '40 bit sha1',
     `name` varchar(128) comment 'file name',
     `peers` varchar(4096) comment 'json [peer_id:ip:port]',
     `ctime` bigint NOT NULL DEFAULT 0,
-    `mtime` bigint NOT NULL DEFAULT 0
+    `mtime` bigint NOT NULL DEFAULT 0,
+    `status` tinyint NOT NULL DEFAULT 0
 ) engine=innodb default charset=utf8mb4;

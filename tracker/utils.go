@@ -6,8 +6,11 @@ package tracker
 
 import (
 	"database/sql"
-	_ "encoding/json"
+	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/garyburd/redigo/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"time"
@@ -60,4 +63,26 @@ func newPool(addr string, passwd string, db string) *redis.Pool {
 			return c, nil
 		},
 	}
+}
+
+// 创建处理错误的返回内容
+func CreateErrResp(statusCode int, msg string) []byte {
+	errResp := map[string]interface{}{
+		"status": statusCode,
+		"msg":    msg,
+	}
+	resp, _ := json.Marshal(errResp)
+	return resp
+}
+
+// 检查 hexdigest 字符串
+func CheckHexdigest(value string, size int) bool {
+	if len(value) != size {
+		return false
+	}
+	value = strings.ToLower(value)
+	pattern := fmt.Sprintf("[a-z0-9]{%d}", size)
+	succ, _ := regexp.Match(pattern, []byte(value))
+	// fmt.Printf("succ %s, %d, %v\n", value, size, succ)
+	return succ
 }

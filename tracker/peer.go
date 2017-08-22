@@ -19,7 +19,7 @@ type InfoHash struct {
 // 1. 检查 peer 是否是公网 ip
 // 2. 检查缓存中是否存在 info hash 不存在则添加 info hash 和 peer 到数据库，并更新缓存
 // 3. 如果存在，则添加 peer 到 info hash 结构
-func (info *InfoHash) GetInfoHash(infoHash string) ([]string, error) {
+func (info *InfoHash) GetPeersFromInfoHash(infoHash string) ([]string, error) {
 	// 从缓存获取 info 信息
 	rds := RdsPool.Get()
 	defer rds.Close()
@@ -44,49 +44,60 @@ func (info *InfoHash) GetInfoHash(infoHash string) ([]string, error) {
 
 		if !find {
 			rds.Do("LPUSH", infoHash, info.peer)
-			peers = append(peers, info.peer)
 		}
-		return peers, nil
 	} else {
 		rds.Do("LPUSH", infoHash, info.peer)
-	}
 
-	// 3. 没有在缓存中找到，从数据库查找
-	// 从数据库获取 info 信息
-	rows, err := DB.Query("Select peers from torrent where infohash = ? limit 1", infoHash)
-	if err != nil {
-		return []string{}, err
-	}
-	count := 0
-	var jsonPeers string
-	for rows.Next() {
-		err = rows.Scan(&jsonPeers)
+		// 3. 没有在缓存中找到，从数据库查找
+		// 从数据库获取 info 信息
+		rows, err := DB.Query(`Select peers from infohash where 
+							   infohash = ? limit 1`,
+			infoHash)
 		if err != nil {
 			return []string{}, err
 		}
-		count += 1
-	}
-
-	// 4. 找到 info hash 信息，插入缓存
-	if count > 0 {
-		err = json.Unmarshal([]byte(jsonPeers), &peers)
-		if err != nil {
-			return []string{}, err
+		count := 0
+		var jsonPeers string
+		for rows.Next() {
+			err = rows.Scan(&jsonPeers)
+			if err != nil {
+				return []string{}, err
+			}
+			count += 1
 		}
-		find := false
-		for _, peer := range peers {
-			rds.Send("LPUSH", infoHash, peer)
-			if peer == info.peer {
-				find = true
+
+		// 4. 找到 info hash 信息，插入缓存
+		if count > 0 {
+			err = json.Unmarshal([]byte(jsonPeers), &peers)
+			if err != nil {
+				return []string{}, err
+			}
+			find := false
+			for _, peer := range peers {
+				rds.Send("LPUSH", infoHash, peer)
+				if peer == info.peer {
+					find = true
+				}
+			}
+			if !find {
+				rds.Send("LPUSH", infoHash, info.peer)
+			}
+			rds.Flush()
+		} else {
+			// 5. 没有找到 info hash 信息，保存 info hash 信息到数据库
+			peers_value, err := json.Marshal([]string{info.peer})
+			stmp, err := DB.Prepare(`insert into 
+									 infohash(infohash, name, peers)
+									 values(?,
+											?,
+											?,
+											unix_timestamp(),
+											unix_timestamp())`)
+			_, err = stmp.Exec(infoHash, info.name, peers_value)
+			if err != nil {
+				return []string{}, err
 			}
 		}
-		if !find {
-			rds.Send("LPUSH", infoHash, info.peer)
-			peers = append(peers, info.peer)
-		}
-		rds.Flush()
-	} else {
-		peers = append(peers, info.peer)
 	}
 
 	return peers, nil

@@ -4,8 +4,10 @@
 package tracker
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/blueskyz/uvdt/logger"
@@ -37,34 +39,47 @@ func btHelloHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "hello bt http serv")
 }
 
+// 错误输出函数
+func toErrRsp(w http.ResponseWriter, log logger.LogAgent, errMsg string) {
+	log.Err(errMsg)
+	errResp := CreateErrResp(-1, errMsg)
+	w.Write(errResp)
+}
+
 func btHandler(w http.ResponseWriter, r *http.Request) {
+
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
 
 	log.Info(r.RequestURI)
-	// 解析 bt 参数
+	// 解析 bt 请求参数
 	values := r.URL.Query()
 	if len(values) == 0 {
-		log.Err("arguments err")
+		toErrRsp(w, log, "Arguments is empty")
+		return
 	}
 
 	infoHash := values.Get("info_hash")
-	if len(infoHash) == 0 {
-		log.Err("infoHash is empty")
+	if !CheckHexdigest(infoHash, 40) {
+		toErrRsp(w, log, "infoHash err")
+		return
 	}
 
 	compact := values.Get("compact")
 
 	peerId := values.Get("peer_id")
-	if len(peerId) == 0 {
-		log.Err("peerId is empty")
+	if !CheckHexdigest(peerId, 20) {
+		toErrRsp(w, log, "peer id's length is not 20")
+		return
 	}
 
 	ip := strings.Split(r.RemoteAddr, ":")[0]
 	port := values.Get("port")
-	if len(port) == 0 {
-		log.Err("port is empty")
+	port_int, err := strconv.Atoi(port)
+	if err != nil || port_int < 0 || port_int > 65535 {
+		toErrRsp(w, log, fmt.Sprintf("Port is err: %s", port))
+		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, compact: %s, peerId: %s, ip: %s, port: %s",
 		infoHash, compact, peerId, ip, port))
@@ -77,9 +92,29 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 		name:     "",
 		peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
 	}
-	peers, err := info.GetInfoHash(infoHash)
+	peers, err := info.GetPeersFromInfoHash(infoHash)
 	if err != nil {
-		log.Err(fmt.Sprintf("Get info hash err: %s", err))
+		errMsg := fmt.Sprintf("Get info hash err: %s", err)
+		log.Err(errMsg)
+		errResp := CreateErrResp(-1, "Get peers fail.")
+		w.Write(errResp)
+		return
 	}
-	fmt.Printf("peers: %v\n", peers)
+
+	// 创建 response
+	btResp := map[string]interface{}{
+		"info_hash": infoHash,
+		"peers":     peers,
+		"interval":  30,
+	}
+	rspBody, err := json.Marshal(btResp)
+	w.Header().Set("Content-type", "application/json")
+	if err != nil {
+		errMsg := fmt.Sprintf("json serialze fail: %s", err.Error())
+		log.Err(errMsg)
+		errResp := CreateErrResp(-1, "json serialize fail.")
+		w.Write(errResp)
+	} else {
+		w.Write(rspBody)
+	}
 }
