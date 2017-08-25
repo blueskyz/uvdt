@@ -13,6 +13,7 @@ import (
 
 func TrackerHttpServ() {
 	log := logger.NewAgent()
+	defer log.EndLog()
 
 	// 设置 tracker http server 路由
 	trackerHttpServMux := http.NewServeMux()

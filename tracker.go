@@ -18,13 +18,13 @@ import (
 func ParseCmd() error {
 	clusterList := flag.String("clusterip",
 		"",
-		"comma-separated ip list of tracker servers, ie 192.168.2.1:30081")
+		"comma-separated ip list of tracker servers, ie 192.168.2.1:30083")
 	btServ := flag.String("btserv",
 		"0.0.0.0:80",
 		"bt server ip and port")
 	trackerServ := flag.String("trackerserv",
 		"0.0.0.0:30081",
-		"tracker server ip and port for cluster")
+		"tracker server ip and port")
 	logFile := flag.String("logfile",
 		"/var/log/uvdt-trace.log",
 		"log file")
