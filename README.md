@@ -36,3 +36,12 @@ uvdt-node
 * 具备本地资源共享功能，计算共享目录的文件，创建 metainfo 文件信息
 * 提供资源的分享功能，提供资源的下载功能
 * 管理 peer 链接的资源传输信息
+
+
+# 运行
+
+## 3.1 tracker 服务器
+
+ bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30080" -trackerserv "0.0.0.0:30081"
+
+## 3.2 node 服务器

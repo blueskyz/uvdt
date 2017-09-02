@@ -17,17 +17,22 @@ type Serv struct {
 }
 
 // 配置类型
+// 路径配置，服务器配置，内存配置
 type Setting struct {
-	logFile     string
+	logFile  string
+	rootPath string // 上传，下载的资源文件路径
+
 	httpServ    Serv
 	btServ      Serv
 	trackerServ Serv
+
+	maxMemPerTask int // 每个上传下载任务可以使用的内存大小，单位：M
 }
 
 var AppSetting Setting
 
 func init() {
-	AppSetting = Setting{}
+	AppSetting = Setting{maxMemPerTask: 32}
 }
 
 // 设置日志文件路径
@@ -83,6 +88,9 @@ func str2Serv(value string) (Serv, error) {
 		return Serv{}, errors.New(fmt.Sprintf("Serv convert argument empty"))
 	}
 	ipport := strings.Split(value, ":")
+	if len(ipport) != 2 {
+		return Serv{}, errors.New(fmt.Sprintf("ip，port err: %s", value))
+	}
 	port, err := strconv.Atoi(ipport[1])
 	if err != nil {
 		return Serv{}, errors.New(fmt.Sprintf("ip，port err: %s", value))
