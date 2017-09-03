@@ -45,3 +45,5 @@ uvdt-node
  bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30080" -trackerserv "0.0.0.0:30081"
 
 ## 3.2 node 服务器
+
+bin/uvdt-node -httpserv 0.0.0.0:8088

@@ -19,6 +19,7 @@ type Serv struct {
 // 配置类型
 // 路径配置，服务器配置，内存配置
 type Setting struct {
+	peerId   string
 	logFile  string
 	rootPath string // 上传，下载的资源文件路径
 
@@ -27,6 +28,7 @@ type Setting struct {
 	trackerServ Serv
 
 	maxMemPerTask int // 每个上传下载任务可以使用的内存大小，单位：M
+	thrNumPerDwn  int // 每个下载任务线程数量
 }
 
 var AppSetting Setting
