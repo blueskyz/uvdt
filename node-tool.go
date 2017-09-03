@@ -85,7 +85,8 @@ func main() {
 
 	log.Info("hello world serv")
 
-	_, err := nodetool.ScanPath()
+	creatorTorrent := nodetool.CreatorTorrent{}
+	_, err := creatorTorrent.ScanPath()
 	if err != nil {
 		log.Err(err.Error())
 	}
