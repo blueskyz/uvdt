@@ -17,7 +17,14 @@ import (
 
 // 解析命令行参数配置
 func ParseCmd() error {
-	// 添加共享文件资源目录，遍历目录下的文件，创建 infohash，并且提交到 tracker 服务器
+	// 设置 root 目录，所有共享的文件必须在这个目录里，
+	// 并且提供给 node-serv 服务使用
+	rootPath := flag.String("rootpath",
+		"",
+		"root path for all resource file")
+
+	// 添加共享文件资源目录，遍历目录下的文件，
+	// 创建 infohash，并且提交到 tracker 服务器
 	resPath := flag.String("respath",
 		"",
 		"add a shared resource Path")
@@ -38,6 +45,7 @@ func ParseCmd() error {
 	flag.Parse()
 
 	// 打印服务参数
+	log.Printf("root path: %s", *rootPath)
 	log.Printf("add a shared resource path: %s", *resPath)
 	log.Printf("add a shared resource file: %s", *resFile)
 	log.Printf("tracker server ip port: %s", *trackerServ)
@@ -46,6 +54,18 @@ func ParseCmd() error {
 	// 创建配置对象
 	AppSetting := &setting.AppSetting
 	AppSetting.SetLogFile(*logFile)
+
+	if len(*rootPath) == 0 {
+		return errors.New("root path is empty")
+	}
+	fileInfo, err := os.Stat(*rootPath)
+	if err != nil {
+		return err
+	}
+	if !fileInfo.IsDir() {
+		return errors.New("root path is not directory")
+	}
+
 	if len(*resPath) == 0 {
 		log.Printf("resource path is empty")
 	} else {
@@ -59,7 +79,7 @@ func ParseCmd() error {
 	if len(*resPath) == 0 && len(*resFile) == 0 {
 		return errors.New("both resource path and resource file are empty")
 	}
-	err := AppSetting.SetTraceServ(*trackerServ)
+	err = AppSetting.SetTraceServ(*trackerServ)
 
 	return err
 }
