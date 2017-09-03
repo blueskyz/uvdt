@@ -1,0 +1,94 @@
+/*
+	配置管理，基本配置结构类型定义
+*/
+package setting
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// 服务类型 ip, port
+type Serv struct {
+	Ip   string
+	Port int
+}
+
+// 配置类型
+// 路径配置，服务器配置，内存配置
+// 保存要处理的资源设置
+type Setting struct {
+	logFile  string
+	rootPath string // 上传，下载的资源文件路径
+
+	resPath string
+	resFile string
+
+	trackerServ Serv
+}
+
+var AppSetting Setting
+
+func init() {
+}
+
+// 设置日志文件路径
+func (set *Setting) SetLogFile(logFile string) {
+	set.logFile = logFile
+}
+func (set *Setting) GetLogFile() string {
+	return set.logFile
+}
+
+// 设置扫描的目录，为了创建 infohash 和 torrentfile
+func (set *Setting) SetResPath(resPath string) {
+	set.resPath = resPath
+}
+
+func (set *Setting) GetResPath() string {
+	return set.resPath
+}
+
+// 设置要共享的资源文件，为了创建 infohash 和 torrentfile
+func (set *Setting) SetResFile(resFile string) {
+	set.resFile = resFile
+}
+
+func (set *Setting) GetResFile() string {
+	return set.resFile
+}
+
+// 设置 trace server
+func (set *Setting) SetTraceServ(value string) error {
+	trackerServ, err := str2Serv(value)
+	if err == nil {
+		set.trackerServ = trackerServ
+	}
+	return err
+}
+
+func (set *Setting) GetTrackerServ() Serv {
+	return set.trackerServ
+}
+
+// 获取 Serv 对象
+func str2Serv(value string) (Serv, error) {
+	if len(value) == 0 {
+		return Serv{}, errors.New(fmt.Sprintf("Serv convert argument empty"))
+	}
+	ipport := strings.Split(value, ":")
+	if len(ipport) != 2 {
+		return Serv{}, errors.New(fmt.Sprintf("ip，port err: %s", value))
+	}
+	port, err := strconv.Atoi(ipport[1])
+	if err != nil {
+		return Serv{}, errors.New(fmt.Sprintf("ip，port err: %s", value))
+	}
+	serv := Serv{
+		Ip:   ipport[0],
+		Port: port,
+	}
+	return serv, nil
+}
