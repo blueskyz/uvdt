@@ -1,13 +1,16 @@
 package nodetool
 
 import (
+	"crypto/md5"
 	"errors"
+	"fmt"
 	"github.com/blueskyz/uvdt/node-tool/setting"
-	// "log"
+	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
-	// "time"
+	"time"
 )
 
 type CreatorTorrent struct {
@@ -15,7 +18,7 @@ type CreatorTorrent struct {
 
 func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 	appSetting := &setting.AppSetting
-	fileList, err := filepath.Glob(path.Join(appSetting.GetResPath(), "*"))
+	fileList, err := filepath.Glob(path.Join(appSetting.GetAbResPath(), "*"))
 	if err != nil {
 		return []string{}, err
 	} else {
@@ -25,16 +28,31 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 				return []string{}, err
 			}
 			if !fileInfo.IsDir() {
-				/*
-					log.Printf("File info: name=%s, size=%d, mtime=%s\n",
-						fileInfo.Name(),
-						fileInfo.Size(),
-						fileInfo.ModTime().Format(time.UnixDate))
-				*/
+				md5sum, _ := creator.calcFileMd5(
+					path.Join(appSetting.GetAbResPath(), fileInfo.Name()))
+				log.Printf("File info: name=%s, size=%d, md5sum=%s, mtime=%s\n",
+					fileInfo.Name(),
+					fileInfo.Size(),
+					md5sum,
+					fileInfo.ModTime().Format(time.RFC3339))
 			}
 		}
 	}
 	return []string{}, nil
+}
+
+func (creator *CreatorTorrent) calcFileMd5(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 func (creator *CreatorTorrent) File2TorrentFile(filePath string) error {

@@ -6,6 +6,7 @@ package setting
 import (
 	"errors"
 	"fmt"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -42,6 +43,15 @@ func (set *Setting) GetLogFile() string {
 	return set.logFile
 }
 
+// 设置项目 root 目录，所有配置文件，资源文件都在这个目录下
+func (set *Setting) SetRootPath(rootPath string) {
+	set.rootPath = rootPath
+}
+
+func (set *Setting) GetRootPath() string {
+	return set.rootPath
+}
+
 // 设置扫描的目录，为了创建 infohash 和 torrentfile
 func (set *Setting) SetResPath(resPath string) {
 	set.resPath = resPath
@@ -49,6 +59,10 @@ func (set *Setting) SetResPath(resPath string) {
 
 func (set *Setting) GetResPath() string {
 	return set.resPath
+}
+
+func (set *Setting) GetAbResPath() string {
+	return path.Join(set.rootPath, set.resPath)
 }
 
 // 设置要共享的资源文件，为了创建 infohash 和 torrentfile

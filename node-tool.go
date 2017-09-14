@@ -57,7 +57,10 @@ func ParseCmd() error {
 
 	if len(*rootPath) == 0 {
 		return errors.New("root path is empty")
+	} else {
+		AppSetting.SetRootPath(*rootPath)
 	}
+
 	fileInfo, err := os.Stat(*rootPath)
 	if err != nil {
 		return err
