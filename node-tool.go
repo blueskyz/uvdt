@@ -29,6 +29,11 @@ func ParseCmd() error {
 		"",
 		"add a shared resource Path")
 
+	// torrent 文件存放的路径
+	torrentPath := flag.String("torrentpath",
+		"torrents",
+		"add a shared torrent file Path")
+
 	// 添加共享文件资源，创建 infohash，并且提交到 tracker 服务器
 	resFile := flag.String("resfile",
 		"",
@@ -48,6 +53,7 @@ func ParseCmd() error {
 	log.Printf("root path: %s", *rootPath)
 	log.Printf("add a shared resource path: %s", *resPath)
 	log.Printf("add a shared resource file: %s", *resFile)
+	log.Printf("add a shared torrent file path: %s", *torrentPath)
 	log.Printf("tracker server ip port: %s", *trackerServ)
 	log.Printf("log file: %s", *logFile)
 
@@ -82,6 +88,13 @@ func ParseCmd() error {
 	if len(*resPath) == 0 && len(*resFile) == 0 {
 		return errors.New("both resource path and resource file are empty")
 	}
+
+	if len(*torrentPath) == 0 {
+		log.Printf("torrent file path is empty")
+	} else {
+		AppSetting.SetTorrentPath(*torrentPath)
+	}
+
 	err = AppSetting.SetTraceServ(*trackerServ)
 
 	return err

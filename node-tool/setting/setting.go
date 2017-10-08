@@ -27,6 +27,8 @@ type Setting struct {
 	resPath string
 	resFile string
 
+	torrentPath string
+
 	trackerServ Serv
 }
 
@@ -63,6 +65,15 @@ func (set *Setting) GetResPath() string {
 
 func (set *Setting) GetAbResPath() string {
 	return path.Join(set.rootPath, set.resPath)
+}
+
+// 设置 torrent 文件路径
+func (set *Setting) SetTorrentPath(torrentPath string) {
+	set.torrentPath = torrentPath
+}
+
+func (set *Setting) GetAbTorrentPath() string {
+	return path.Join(set.rootPath, set.torrentPath)
 }
 
 // 设置要共享的资源文件，为了创建 infohash 和 torrentfile

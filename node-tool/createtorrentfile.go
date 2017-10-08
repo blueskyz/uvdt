@@ -24,13 +24,28 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	} else {
+		// 创建 torrent 目录
+		torrentPath := appSetting.GetAbTorrentPath()
+		fileInfo, err := os.Stat(torrentPath)
+		if err == nil {
+			if !fileInfo.IsDir() {
+				return []string{}, errors.New(fmt.Sprintf("%s is not dir", torrentPath))
+			}
+		}
+		if os.IsNotExist(err) {
+			err := os.Mkdir(torrentPath, 0755)
+			if err != nil {
+				return []string{}, err
+			}
+		}
+
 		for _, file := range fileList {
 			fileInfo, err := os.Stat(file)
 			if err != nil {
 				return []string{}, err
 			}
 			if !fileInfo.IsDir() {
-				fileMd5, partsMd5, err := creator.calcFileMd5(
+				blockSize, fileMd5, partsMd5, err := creator.calcFileMd5(
 					path.Join(appSetting.GetAbResPath(), fileInfo.Name()))
 
 				if err != nil {
@@ -46,34 +61,48 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 				*/
 
 				c := make(map[string]interface{})
+				c["version"] = "1.0"
+				c["block_size"] = blockSize
 				c["file_name"] = fileInfo.Name()
 				c["file_size"] = fileInfo.Size()
 				c["file_md5"] = fileMd5
 				c["mtime"] = fileInfo.ModTime().UnixNano()
+				c["part_count"] = len(partsMd5)
 				c["file_parts"] = partsMd5
 				torrent, err := json.Marshal(c)
 				if err != nil {
 					return []string{}, err
 				}
 				log.Printf("%s", torrent)
+
+				// 保存 torrent 文件
+				torrent_file := path.Join(torrentPath, fileInfo.Name())
+				f, err := os.OpenFile(torrent_file, os.O_RDWR|os.O_CREATE, 0666)
+				if err != nil {
+					log.Printf("%s: %s", f, err.Error())
+					continue
+				}
+				defer f.Close()
+
+				f.Write(torrent)
 			}
 		}
 	}
 	return []string{}, nil
 }
 
-func (creator *CreatorTorrent) calcFileMd5(filePath string) (string,
+func (creator *CreatorTorrent) calcFileMd5(filePath string) (int, string,
 	[]string,
 	error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return "", nil, err
+		return 0, "", nil, err
 	}
 	defer f.Close()
 
 	h := md5.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", nil, err
+		return 0, "", nil, err
 	}
 	fileMd5 := fmt.Sprintf("%x", h.Sum(nil))
 
@@ -94,7 +123,7 @@ func (creator *CreatorTorrent) calcFileMd5(filePath string) (string,
 		partsMd5 = append(partsMd5, partMd5)
 	}
 
-	return fileMd5, partsMd5, nil
+	return fileChunk, fileMd5, partsMd5, nil
 }
 
 func (creator *CreatorTorrent) File2TorrentFile(filePath string) error {
