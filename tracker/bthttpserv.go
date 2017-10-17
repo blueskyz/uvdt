@@ -32,19 +32,19 @@ func BtHttpServ() {
 	}
 }
 
+// 错误输出函数
+func toErrRsp(w http.ResponseWriter, log *logger.LogAgent, errMsg string) {
+	log.Err(errMsg)
+	errResp := CreateErrResp(-1, errMsg)
+	w.Write(errResp)
+}
+
 func btHelloHandler(w http.ResponseWriter, r *http.Request) {
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
 
 	fmt.Fprintf(w, "hello bt http serv")
-}
-
-// 错误输出函数
-func toErrRsp(w http.ResponseWriter, log logger.LogAgent, errMsg string) {
-	log.Err(errMsg)
-	errResp := CreateErrResp(-1, errMsg)
-	w.Write(errResp)
 }
 
 func btNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -57,13 +57,13 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	// 解析 bt 请求参数
 	values := r.URL.Query()
 	if len(values) == 0 {
-		toErrRsp(w, log, "Arguments is empty")
+		toErrRsp(w, &log, "Arguments is empty")
 		return
 	}
 
 	infoHash := values.Get("info_hash")
 	if !CheckHexdigest(infoHash, 32) {
-		toErrRsp(w, log, "infoHash err")
+		toErrRsp(w, &log, "infoHash err")
 		return
 	}
 
@@ -71,7 +71,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	peerId := values.Get("peer_id")
 	if !CheckHexdigest(peerId, 20) {
-		toErrRsp(w, log, "peer id's length is not 20")
+		toErrRsp(w, &log, "peer id's length is not 20")
 		return
 	}
 
@@ -79,7 +79,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	port := values.Get("port")
 	port_int, err := strconv.Atoi(port)
 	if err != nil || port_int < 0 || port_int > 65535 {
-		toErrRsp(w, log, fmt.Sprintf("Port is err: %s", port))
+		toErrRsp(w, &log, fmt.Sprintf("Port is err: %s", port))
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, compact: %s, peerId: %s, ip: %s, port: %s",
@@ -126,29 +126,29 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
+	// fixme: 必须登陆
+
 	values := r.URL.Query()
 	if len(values) == 0 {
-		toErrRsp(w, log, "Arguments is empty")
+		toErrRsp(w, &log, "Arguments is empty")
 		return
 	}
 	infoHash := values.Get("infohash")
 	if !CheckHexdigest(infoHash, 32) {
-		outInfoHash := [:]byte{}
-		if len(infoHash) > 32 {
-			outInfoHash := infoHash[:32]
+		hashLen := len(infoHash)
+		if hashLen > 32 {
+			infoHash = infoHash[:33]
 		}
-		toErrRsp(w, log, fmt.Sprint("infoHash parameter err, infohash=%s", out_infoHash[39]))
+		toErrRsp(w, &log, fmt.Sprintf("infoHash parameter err, len=%d, infohash=%s",
+			hashLen, infoHash))
 		return
 	}
 
-	// 获取 torrent file
-	log.Info(fmt.Sprintf("%s: infohash=%s", r.Method, infoHash))
 	if r.Method == "GET" {
+		// 获取 torrent file
 		log.Info(fmt.Sprintf("GET: infohash=%s", infoHash))
-	}
-
-	// 上传 torrent file
-	if r.Method == "POST" {
+	} else if r.Method == "POST" {
+		// 上传 torrent file
 		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
 	}
 }
