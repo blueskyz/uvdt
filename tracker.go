@@ -82,7 +82,7 @@ func main() {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	log.Info("hello world serv")
+	log.Info("Start tracker server ...")
 
 	// 启动管理服务器
 	go tracker.TrackerHttpServ()

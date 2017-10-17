@@ -36,5 +36,5 @@ func trackerHelloHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func trackerHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "tracker http serv")
+	fmt.Fprintf(w, "Start tracker http serv ...")
 }

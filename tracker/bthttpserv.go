@@ -21,7 +21,8 @@ func BtHttpServ() {
 	// 设置 bt http server 路由
 	btHttpServMux := http.NewServeMux()
 	btHttpServMux.HandleFunc("/hello", btHelloHandler)
-	btHttpServMux.HandleFunc("/node", btHandler)
+	btHttpServMux.HandleFunc("/node", btNodeHandler)
+	btHttpServMux.HandleFunc("/torrent", btTorrentHandler)
 
 	btServ := setting.AppSetting.GetBtServ()
 	log.Info(fmt.Sprintf("init %s:%d", btServ.Ip, btServ.Port))
@@ -46,7 +47,7 @@ func toErrRsp(w http.ResponseWriter, log logger.LogAgent, errMsg string) {
 	w.Write(errResp)
 }
 
-func btHandler(w http.ResponseWriter, r *http.Request) {
+func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 创建日志记录器
 	log := logger.NewAgent()
@@ -61,7 +62,7 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	infoHash := values.Get("info_hash")
-	if !CheckHexdigest(infoHash, 40) {
+	if !CheckHexdigest(infoHash, 32) {
 		toErrRsp(w, log, "infoHash err")
 		return
 	}
@@ -116,5 +117,38 @@ func btHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write(errResp)
 	} else {
 		w.Write(rspBody)
+	}
+}
+
+func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
+
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	values := r.URL.Query()
+	if len(values) == 0 {
+		toErrRsp(w, log, "Arguments is empty")
+		return
+	}
+	infoHash := values.Get("infohash")
+	if !CheckHexdigest(infoHash, 32) {
+		outInfoHash := [:]byte{}
+		if len(infoHash) > 32 {
+			outInfoHash := infoHash[:32]
+		}
+		toErrRsp(w, log, fmt.Sprint("infoHash parameter err, infohash=%s", out_infoHash[39]))
+		return
+	}
+
+	// 获取 torrent file
+	log.Info(fmt.Sprintf("%s: infohash=%s", r.Method, infoHash))
+	if r.Method == "GET" {
+		log.Info(fmt.Sprintf("GET: infohash=%s", infoHash))
+	}
+
+	// 上传 torrent file
+	if r.Method == "POST" {
+		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
 	}
 }

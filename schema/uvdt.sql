@@ -10,5 +10,6 @@ create table if not exists `infohash` (
     `peers` varchar(4096) comment 'json [peer_id:ip:port]',
     `ctime` bigint NOT NULL DEFAULT 0,
     `mtime` bigint NOT NULL DEFAULT 0,
-    `status` tinyint NOT NULL DEFAULT 0
+    `status` tinyint NOT NULL DEFAULT 0,
+    `torrent` text
 ) engine=innodb default charset=utf8mb4;
