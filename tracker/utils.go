@@ -8,9 +8,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/blueskyz/uvdt/logger"
 	"github.com/garyburd/redigo/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"time"
@@ -65,14 +67,55 @@ func newPool(addr string, passwd string, db string) *redis.Pool {
 	}
 }
 
-// 创建处理错误的返回内容
-func CreateErrResp(statusCode int, msg string) []byte {
-	errResp := map[string]interface{}{
-		"status": statusCode,
+// 创建处理成功的返回内容
+func CreateSuccResp(w http.ResponseWriter,
+	log *logger.LogAgent,
+	msg string,
+	result map[string]interface{}) {
+
+	log.Info(msg)
+	retResp := map[string]interface{}{
+		"status": 0,
 		"msg":    msg,
+		"result": result,
 	}
-	resp, _ := json.Marshal(errResp)
-	return resp
+	w.Header().Set("Content-type", "application/json")
+
+	resp, err := json.Marshal(retResp)
+	if err != nil {
+		log.Err(fmt.Sprintf("Json serialize fail, ", err.Error()))
+		errJsonResp := map[string]interface{}{
+			"status": -1,
+			"msg":    "Json serialize fail",
+		}
+		errJson, _ := json.Marshal(errJsonResp)
+		w.Write(errJson)
+	} else {
+		w.Write(resp)
+	}
+}
+
+// 创建处理错误的返回内容
+func CreateErrResp(w http.ResponseWriter, log *logger.LogAgent, errMsg string) {
+	log.Err(errMsg)
+	errResp := map[string]interface{}{
+		"status": -1,
+		"msg":    errMsg,
+	}
+	w.Header().Set("Content-type", "application/json")
+
+	resp, err := json.Marshal(errResp)
+	if err != nil {
+		log.Err(fmt.Sprintf("Json serialize fail, ", err.Error()))
+		errJsonResp := map[string]interface{}{
+			"status": -1,
+			"msg":    "Json serialize fail",
+		}
+		errJson, _ := json.Marshal(errJsonResp)
+		w.Write(errJson)
+	} else {
+		w.Write(resp)
+	}
 }
 
 // 检查 hexdigest 字符串

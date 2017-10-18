@@ -10,16 +10,25 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-type InfoHash struct {
+type Torrent struct {
 	infoHash string
 	name     string
 	peer     string // peer_id:ip:port
+	status   int
+}
+
+func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
+	return nil
+}
+
+func (info *Torrent) GetTorrent(infoHash string) (string, error) {
+	return "", nil
 }
 
 // 1. 检查 peer 是否是公网 ip
 // 2. 检查缓存中是否存在 info hash 不存在则添加 info hash 和 peer 到数据库，并更新缓存
 // 3. 如果存在，则添加 peer 到 info hash 结构
-func (info *InfoHash) GetPeersFromInfoHash(infoHash string) ([]string, error) {
+func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 	// 从缓存获取 info 信息
 	rds := RdsPool.Get()
 	defer rds.Close()
@@ -105,7 +114,4 @@ func (info *InfoHash) GetPeersFromInfoHash(infoHash string) ([]string, error) {
 	}
 
 	return peers, nil
-}
-
-func (info *InfoHash) AddTorrent(infoHash string, torrent string) {
 }

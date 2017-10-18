@@ -4,7 +4,6 @@
 package tracker
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -22,7 +21,7 @@ func BtHttpServ() {
 	btHttpServMux := http.NewServeMux()
 	btHttpServMux.HandleFunc("/hello", btHelloHandler)
 	btHttpServMux.HandleFunc("/node", btNodeHandler)
-	btHttpServMux.HandleFunc("/torrent", btTorrentHandler)
+	btHttpServMux.HandleFunc("/", btTorrentHandler)
 
 	btServ := setting.AppSetting.GetBtServ()
 	log.Info(fmt.Sprintf("init %s:%d", btServ.Ip, btServ.Port))
@@ -30,13 +29,6 @@ func BtHttpServ() {
 	if err != nil {
 		log.Err("init, " + err.Error())
 	}
-}
-
-// 错误输出函数
-func toErrRsp(w http.ResponseWriter, log *logger.LogAgent, errMsg string) {
-	log.Err(errMsg)
-	errResp := CreateErrResp(-1, errMsg)
-	w.Write(errResp)
 }
 
 func btHelloHandler(w http.ResponseWriter, r *http.Request) {
@@ -57,21 +49,22 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	// 解析 bt 请求参数
 	values := r.URL.Query()
 	if len(values) == 0 {
-		toErrRsp(w, &log, "Arguments is empty")
+		CreateErrResp(w, &log, "Arguments is empty")
 		return
 	}
 
 	infoHash := values.Get("info_hash")
 	if !CheckHexdigest(infoHash, 32) {
-		toErrRsp(w, &log, "infoHash err")
+		CreateErrResp(w, &log, "infoHash err")
 		return
 	}
 
 	compact := values.Get("compact")
 
+	// 获取 peer id, ip, port 信息
 	peerId := values.Get("peer_id")
-	if !CheckHexdigest(peerId, 20) {
-		toErrRsp(w, &log, "peer id's length is not 20")
+	if !CheckHexdigest(peerId, 32) {
+		CreateErrResp(w, &log, "peer id's length is not 20")
 		return
 	}
 
@@ -79,7 +72,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	port := values.Get("port")
 	port_int, err := strconv.Atoi(port)
 	if err != nil || port_int < 0 || port_int > 65535 {
-		toErrRsp(w, &log, fmt.Sprintf("Port is err: %s", port))
+		CreateErrResp(w, &log, fmt.Sprintf("Port is err: %s", port))
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, compact: %s, peerId: %s, ip: %s, port: %s",
@@ -88,17 +81,14 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	// 检查保存 node 信息
 
 	// 获取 peer list
-	info := InfoHash{
+	info := Torrent{
 		infoHash: infoHash,
 		name:     "",
 		peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
 	}
-	peers, err := info.GetPeersFromInfoHash(infoHash)
+	peers, err := info.GetPeers(infoHash)
 	if err != nil {
-		errMsg := fmt.Sprintf("Get info hash err: %s", err)
-		log.Err(errMsg)
-		errResp := CreateErrResp(-1, "Get peers fail.")
-		w.Write(errResp)
+		CreateErrResp(w, &log, fmt.Sprintf("Get peers err: %s", err))
 		return
 	}
 
@@ -108,16 +98,8 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"peers":     peers,
 		"interval":  30,
 	}
-	rspBody, err := json.Marshal(btResp)
-	w.Header().Set("Content-type", "application/json")
-	if err != nil {
-		errMsg := fmt.Sprintf("json serialze fail: %s", err.Error())
-		log.Err(errMsg)
-		errResp := CreateErrResp(-1, "json serialize fail.")
-		w.Write(errResp)
-	} else {
-		w.Write(rspBody)
-	}
+
+	CreateSuccResp(w, &log, "succ", btResp)
 }
 
 func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +112,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 
 	values := r.URL.Query()
 	if len(values) == 0 {
-		toErrRsp(w, &log, "Arguments is empty")
+		CreateErrResp(w, &log, "Arguments is empty")
 		return
 	}
 	infoHash := values.Get("infohash")
@@ -139,16 +121,72 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		if hashLen > 32 {
 			infoHash = infoHash[:33]
 		}
-		toErrRsp(w, &log, fmt.Sprintf("infoHash parameter err, len=%d, infohash=%s",
-			hashLen, infoHash))
+		CreateErrResp(w, &log, fmt.Sprintf("infoHash parameter err, infohash=%s, len=%d",
+			hashLen,
+			infoHash))
 		return
 	}
+
+	// 获取 peer id, ip, port 信息
+	peerId := values.Get("peer_id")
+	if !CheckHexdigest(peerId, 32) {
+		CreateErrResp(w, &log, "peer id's length is not 20")
+		return
+	}
+
+	ip := strings.Split(r.RemoteAddr, ":")[0]
+	port := values.Get("port")
+	port_int, err := strconv.Atoi(port)
+	if err != nil || port_int < 0 || port_int > 65535 {
+		CreateErrResp(w, &log, fmt.Sprintf("Port is err: %s", port))
+		return
+	}
+	log.Info(fmt.Sprintf("infoHash: %s, peerId: %s, ip: %s, port: %s",
+		infoHash, peerId, ip, port))
 
 	if r.Method == "GET" {
 		// 获取 torrent file
 		log.Info(fmt.Sprintf("GET: infohash=%s", infoHash))
+
+		/*
+			torrent := Torrent{
+				infoHash: infoHash,
+				name:     "",
+				peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
+			}
+			msg, err := info.AddTorrent(torrent)
+			if err != nil {
+				CreateErrResp(w, &log, fmt.Sprintf("Get torrent err: %s", err))
+				return
+			}
+			w.Write()
+		*/
 	} else if r.Method == "POST" {
 		// 上传 torrent file
 		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
+		torrent := values.Get("torrent")
+		if len(torrent) >= (1024 << 12) {
+			CreateErrResp(w, &log, fmt.Sprintf("infohash=%s, torrent len=%d",
+				infoHash,
+				len(torrent)))
+			return
+		}
+
+		info := Torrent{
+			infoHash: infoHash,
+			name:     "",
+			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
+		}
+		torrent, err := info.GetTorrent(infoHash)
+		if err != nil {
+			CreateErrResp(w, &log, fmt.Sprintf("Get torrent err: %s", err))
+			return
+		}
 	}
+
+	// 创建 response
+	btResp := map[string]interface{}{
+		"info_hash": infoHash,
+	}
+	CreateSuccResp(w, &log, "succ", btResp)
 }
