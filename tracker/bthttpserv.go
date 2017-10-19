@@ -122,15 +122,15 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 			infoHash = infoHash[:33]
 		}
 		CreateErrResp(w, &log, fmt.Sprintf("infoHash parameter err, infohash=%s, len=%d",
-			hashLen,
-			infoHash))
+			infoHash,
+			hashLen))
 		return
 	}
 
 	// 获取 peer id, ip, port 信息
 	peerId := values.Get("peer_id")
 	if !CheckHexdigest(peerId, 32) {
-		CreateErrResp(w, &log, "peer id's length is not 20")
+		CreateErrResp(w, &log, "peer id's length is not 32")
 		return
 	}
 
@@ -142,7 +142,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, peerId: %s, ip: %s, port: %s",
-		infoHash, peerId, ip, port))
+		infoHash, peerId, r.RemoteAddr, port))
 
 	if r.Method == "GET" {
 		// 获取 torrent file
