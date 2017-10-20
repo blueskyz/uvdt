@@ -129,3 +129,10 @@ func CheckHexdigest(value string, size int) bool {
 	// fmt.Printf("succ %s, %d, %v\n", value, size, succ)
 	return succ
 }
+
+// 检查 ip 字符串
+func CheckIP(sip string) bool {
+	const ipReg = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
+	reg, _ := regexp.Compile(ipReg)
+	return reg.MatchString(sip)
+}

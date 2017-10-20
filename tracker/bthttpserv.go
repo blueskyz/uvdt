@@ -134,7 +134,13 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取 ip
 	ip := strings.Split(r.RemoteAddr, ":")[0]
+	if !CheckIP(ip) {
+		ip = "127.0.0.1"
+	}
+
+	// 获取 port
 	port := values.Get("port")
 	port_int, err := strconv.Atoi(port)
 	if err != nil || port_int < 0 || port_int > 65535 {
@@ -142,51 +148,51 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, peerId: %s, ip: %s, port: %s",
-		infoHash, peerId, r.RemoteAddr, port))
-
-	if r.Method == "GET" {
-		// 获取 torrent file
-		log.Info(fmt.Sprintf("GET: infohash=%s", infoHash))
-
-		/*
-			torrent := Torrent{
-				infoHash: infoHash,
-				name:     "",
-				peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
-			}
-			msg, err := info.AddTorrent(torrent)
-			if err != nil {
-				CreateErrResp(w, &log, fmt.Sprintf("Get torrent err: %s", err))
-				return
-			}
-			w.Write()
-		*/
-	} else if r.Method == "POST" {
-		// 上传 torrent file
-		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
-		torrent := values.Get("torrent")
-		if len(torrent) >= (1024 << 12) {
-			CreateErrResp(w, &log, fmt.Sprintf("infohash=%s, torrent len=%d",
-				infoHash,
-				len(torrent)))
-			return
-		}
-
-		info := Torrent{
-			infoHash: infoHash,
-			name:     "",
-			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
-		}
-		torrent, err := info.GetTorrent(infoHash)
-		if err != nil {
-			CreateErrResp(w, &log, fmt.Sprintf("Get torrent err: %s", err))
-			return
-		}
-	}
+		infoHash, peerId, ip, port))
 
 	// 创建 response
 	btResp := map[string]interface{}{
 		"info_hash": infoHash,
 	}
+
+	if r.Method == "GET" {
+		// 获取 torrent file
+		log.Info(fmt.Sprintf("GET: infohash=%s", infoHash))
+
+		torrent := Torrent{
+			infoHash: infoHash,
+			name:     "",
+			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
+		}
+		torrentContent, err := torrent.GetTorrent(infoHash)
+		log.Info(fmt.Sprintf("type = %T", infoHash))
+		if err != nil {
+			CreateErrResp(w, &log, fmt.Sprintf("Get torrentContent err: %s", err))
+			return
+		}
+		btResp["torrent_content"] = torrentContent
+	} else if r.Method == "POST" {
+		// 上传 torrent file
+		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
+		torrentContent := values.Get("torrent")
+		if len(torrentContent) >= (1024 << 12) {
+			CreateErrResp(w, &log, fmt.Sprintf("infohash=%s, torrentContent len=%d",
+				infoHash,
+				len(torrentContent)))
+			return
+		}
+
+		torrent := Torrent{
+			infoHash: infoHash,
+			name:     "",
+			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
+		}
+		err := torrent.AddTorrent(infoHash, torrentContent)
+		if err != nil {
+			CreateErrResp(w, &log, fmt.Sprintf("upload torrent err: %s", err))
+			return
+		}
+	}
+
 	CreateSuccResp(w, &log, "succ", btResp)
 }
