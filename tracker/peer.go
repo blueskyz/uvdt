@@ -18,6 +18,32 @@ type Torrent struct {
 }
 
 func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
+	// 0. 验证用户
+
+	// 从缓存获取 info 信息
+	rds := RdsPool.Get()
+	defer rds.Close()
+
+	// 1. 从缓存查找 info hash 信息
+	exists, err := redis.Bool(rds.Do("EXISTS", infoHash))
+	if err != nil && exists {
+		return err
+	}
+
+	_, err = rds.Do("SET", infoHash, torrent)
+	if err != nil {
+		return err
+	}
+
+	// 2. 保存到数据库
+	_, err = DB.Query(`insert into infohash (infohash, torrent) 
+	values (?, ?)`,
+		infoHash,
+		torrent)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -51,7 +77,6 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		count := 0
 		var infoHash string
 		var torrent string
 		for rows.Next() {
@@ -59,11 +84,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			count += 1
-		}
-
-		// 4. 找到 info hash 信息，插入缓存
-		if count > 0 {
+			// 4. 找到 info hash 信息，插入缓存
 			return torrent, nil
 		}
 	}

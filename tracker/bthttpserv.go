@@ -165,7 +165,6 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
 		}
 		torrentContent, err := torrent.GetTorrent(infoHash)
-		log.Info(fmt.Sprintf("type = %T", infoHash))
 		if err != nil {
 			CreateErrResp(w, &log, fmt.Sprintf("Get torrentContent err: %s", err))
 			return
@@ -176,7 +175,14 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
 		torrentContent := values.Get("torrent")
 		if len(torrentContent) >= (1024 << 12) {
-			CreateErrResp(w, &log, fmt.Sprintf("infohash=%s, torrentContent len=%d",
+			CreateErrResp(w, &log, fmt.Sprintf("too big, infohash=%s, torrentContent len=%d",
+				infoHash,
+				len(torrentContent)))
+			return
+		}
+
+		if len(torrentContent) == 0 {
+			CreateErrResp(w, &log, fmt.Sprintf("too short, infohash=%s, torrentContent len=%d",
 				infoHash,
 				len(torrentContent)))
 			return
