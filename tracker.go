@@ -68,7 +68,7 @@ func init() {
 	defer log.EndLog()
 
 	// 设置数据库
-	err = tracker.InitDB("127.0.0.1:3306", "root", "1")
+	err = tracker.InitDB("127.0.0.1:3306", "root", "my-secret-pw")
 	if err != nil {
 		log.Err(err.Error())
 	}
