@@ -36,8 +36,8 @@ func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
 	}
 
 	// 2. 保存到数据库
-	_, err = DB.Query(`insert into infohash (infohash, torrent) 
-	values (?, ?)`,
+	_, err = DB.Query(`insert into infohash (infohash, ctime, torrent) 
+	values (?, unix_timestamp(), ?)`,
 		infoHash,
 		torrent)
 	if err != nil {

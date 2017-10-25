@@ -196,9 +196,19 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 			name:     "",
 			peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
 		}
-		err := torrent.AddTorrent(infoHash, torrentContent)
+		log.Info(fmt.Sprintf("content=%s", torrentContent))
+		content, err := ParseBtProto(infoHash, torrentContent)
 		if err != nil {
-			CreateErrResp(w, &log, fmt.Sprintf("upload torrent err: %s", err))
+			log.Err(err.Error())
+			CreateErrResp(w, &log, "Parse torrent fail")
+			return
+		}
+
+		log.Info(fmt.Sprintf("version=%d", int(content["version"].(float64))))
+		err = torrent.AddTorrent(infoHash, torrentContent)
+		if err != nil {
+			log.Err(err.Error())
+			CreateErrResp(w, &log, "upload torrent to db error")
 			return
 		}
 	}
