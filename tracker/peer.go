@@ -36,13 +36,14 @@ func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
 	}
 
 	// 2. 保存到数据库
-	_, err = DB.Query(`insert into infohash (infohash, ctime, torrent) 
-	values (?, unix_timestamp(), ?)`,
+	r, err := DB.Query(`insert into infohash (infohash, ctime, torrent) 
+					   values (?, unix_timestamp(), ?)`,
 		infoHash,
 		torrent)
 	if err != nil {
 		return err
 	}
+	r.Close()
 
 	return nil
 }
@@ -128,6 +129,7 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 		rows, err := DB.Query(`Select peers from infohash where 
 							   infohash = ? limit 1`,
 			infoHash)
+		rows.Close()
 		if err != nil {
 			return []string{}, err
 		}
