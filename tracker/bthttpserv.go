@@ -176,7 +176,6 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		postValues := r.PostForm
 		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
 		torrentContent := postValues.Get("torrent")
-		// torrentContent := values.Get("torrent")
 		if len(torrentContent) >= (1024 << 12) {
 			CreateErrResp(w, &log, fmt.Sprintf("too big, infohash=%s, torrentContent len=%d",
 				infoHash,

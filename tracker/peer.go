@@ -6,7 +6,7 @@ package tracker
 
 import (
 	"encoding/json"
-	_ "fmt"
+	"fmt"
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -71,22 +71,20 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 	} else {
 		// 3. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
-		rows, err := DB.Query(`Select infohash, torrent from infohash where 
+		rows := DB.QueryRow(`Select infohash, torrent from infohash where 
 							   infohash = ? limit 1`,
 			infoHash)
+
+		var infoHash string
+		var torrent string
+		err = rows.Scan(&infoHash, &torrent)
 		if err != nil {
 			return "", err
 		}
-		var infoHash string
-		var torrent string
-		for rows.Next() {
-			err = rows.Scan(&infoHash, &torrent)
-			if err != nil {
-				return "", err
-			}
-			// 4. 找到 info hash 信息，插入缓存
-			return torrent, nil
-		}
+		// 4. 找到 info hash 信息，插入缓存
+		rds.Send("LPUSH", fmt.Sprintf("%s-tor", infoHash, torrent))
+		rds.Flush()
+		return torrent, nil
 	}
 
 	return "", nil
