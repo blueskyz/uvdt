@@ -58,7 +58,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 	defer rds.Close()
 
 	// 1. 从缓存查找 info hash 信息
-	torrentList, err := redis.Values(rds.Do("GET", infoHash))
+	torrent, err := redis.String(rds.Do("GET", infoHash))
 	if err != nil {
 		if err.Error() != "redigo: nil returned" {
 			return "", err
@@ -66,9 +66,8 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 	}
 
 	// 2. 在缓存中找到 torrent
-	if len(torrentList) > 0 {
-		torrent := torrentList[0]
-		return string(torrent.([]byte)), nil
+	if len(torrent) > 0 {
+		return torrent, nil
 	} else {
 		// 3. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
