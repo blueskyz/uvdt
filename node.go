@@ -71,15 +71,6 @@ func init() {
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
-
-	// 设置数据库
-	//err = tracker.InitDB("127.0.0.1:3306", "root", "1")
-	//if err != nil {
-	//log.Err(err.Error())
-	//}
-	//
-	//// 设置数缓存
-	//tracker.InitRedis("127.0.0.1:6379", "1", "3")
 }
 
 func main() {
@@ -87,7 +78,7 @@ func main() {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	log.Info("hello world serv")
+	log.Info("node server start")
 
 	// 启动 bt http 服务
 	// go tracker.BtHttpServ()
