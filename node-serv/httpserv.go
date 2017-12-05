@@ -20,6 +20,9 @@ func HttpServ() {
 	HttpServMux.HandleFunc("/hello", httpHelloHandler)
 	HttpServMux.HandleFunc("/", httpHandler)
 
+	// 上传
+	HttpServMux.HandleFunc("/api/upload", httpHandler)
+
 	httpServ := setting.AppSetting.GetHttpServ()
 	log.Info(fmt.Sprintf("%s:%d", httpServ.Ip, httpServ.Port))
 	fmt.Println("why ...")

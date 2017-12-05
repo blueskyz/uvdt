@@ -27,6 +27,7 @@ type Setting struct {
 	btServ      Serv
 	trackerServ Serv
 
+	maxTaskNum    int // 并行管理的可以上传下载的文件数量，每个任务对应一个文件
 	maxMemPerTask int // 每个上传下载任务可以使用的内存大小，单位：M
 	thrNumPerDwn  int // 每个下载任务线程数量
 }

@@ -80,8 +80,8 @@ func main() {
 
 	log.Info("node server start")
 
-	// 启动 bt http 服务
-	// go tracker.BtHttpServ()
+	// 启动管理服务器
+	go nodeserv.BtHttpServ()
 
 	// 启动管理服务器
 	nodeserv.HttpServ()
