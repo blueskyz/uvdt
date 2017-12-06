@@ -80,7 +80,11 @@ func main() {
 
 	log.Info("node server start")
 
-	// 启动管理服务器
+	// 1. 创建下载和分享的文件对象
+	// 2. 启动下载服务
+	filesMgr := FilesMgr()
+
+	// 启动资源分享服务器
 	go nodeserv.BtHttpServ()
 
 	// 启动管理服务器
