@@ -16,18 +16,18 @@ func BtHttpServ() {
 	defer log.EndLog()
 
 	// 设置  http server 路由
-	HttpDownloadServMux := http.NewServeMux()
-	HttpDownloadServMux.HandleFunc("/hello", httpBtHelloHandler)
+	HttpBtServMux := http.NewServeMux()
+	HttpBtServMux.HandleFunc("/hello", httpBtHelloHandler)
 
 	// 上传
-	HttpDownloadServMux.HandleFunc("/api/download", downloadHandler)
+	HttpBtServMux.HandleFunc("/api/download", httpBtHandler)
 
-	httpDownloadServ := setting.AppSetting.GetBtServ()
-	log.Info(fmt.Sprintf("%s:%d", httpDownloadServ.Ip, httpDownloadServ.Port))
+	httpBtServ := setting.AppSetting.GetBtServ()
+	log.Info(fmt.Sprintf("%s:%d", httpBtServ.Ip, httpBtServ.Port))
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d",
-		httpDownloadServ.Ip,
-		httpDownloadServ.Port),
-		HttpDownloadServMux)
+		httpBtServ.Ip,
+		httpBtServ.Port),
+		HttpBtServMux)
 	if err != nil {
 		log.Err(err.Error())
 	}
@@ -40,6 +40,6 @@ func httpBtHelloHandler(w http.ResponseWriter, r *http.Request) {
 /*
  * 下载资源
  */
-func downloadHandler(w http.ResponseWriter, r *http.Request) {
+func httpBtHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "download http serv")
 }
