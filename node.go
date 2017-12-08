@@ -82,7 +82,7 @@ func main() {
 
 	// 1. 创建下载和分享的文件对象
 	// 2. 启动下载服务
-	filesMgr := FilesMgr()
+	filesMgr := nodeserv.FilesManager()
 
 	// 启动资源分享服务器
 	go nodeserv.BtHttpServ()

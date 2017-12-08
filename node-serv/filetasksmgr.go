@@ -36,8 +36,9 @@ type JobData struct {
 
 // worker 定义执行具体的下载工作
 type Worker struct {
-	Id   int
-	stop chan bool // 退出标志
+	Id       int
+	stop     chan bool // 退出标志
+	filename string    // 文件绝对路径
 
 	JobQueue chan JobData
 }
@@ -49,9 +50,9 @@ func (w *Worker) Run() {
 
 		for {
 			select {
-			case job := <-w.JobQueue:
+			case jobData := <-w.JobQueue:
 				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-				log.Info(fmt.Sprintf("Worker[%d] do length", w.Id))
+				log.Info(fmt.Sprintf("Worker[%d] do length", jobData.length))
 			case _ = <-w.stop:
 				log.Info(fmt.Sprintf("Worker[%d] stop", w.Id))
 			}
@@ -73,10 +74,11 @@ type FileTasksMgr struct {
 	downloadWkrs []*Worker
 }
 
-func (ftMgr *FileTasksMgr) Start(maxDlThrNum int) {
+func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) {
 	ftMgr.maxDownloadThrNum = maxDlThrNum
 	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
-		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs, &Worker{i, make(chan bool), jobQueue})
+		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
+			&Worker{i, make(chan bool), filename, jobQueue})
 	}
 }
