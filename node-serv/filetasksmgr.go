@@ -51,7 +51,8 @@ func (w *Worker) Run() {
 			select {
 			case job := <-w.JobQueue:
 				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-			case stop := <-w.stop:
+				log.Info(fmt.Sprintf("Worker[%d] do length", w.Id))
+			case _ = <-w.stop:
 				log.Info(fmt.Sprintf("Worker[%d] stop", w.Id))
 			}
 		}
@@ -74,7 +75,8 @@ type FileTasksMgr struct {
 
 func (ftMgr *FileTasksMgr) Start(maxDlThrNum int) {
 	ftMgr.maxDownloadThrNum = maxDlThrNum
+	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
-		Worker()
+		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs, &Worker{i, make(chan bool), jobQueue})
 	}
 }
