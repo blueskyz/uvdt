@@ -5,19 +5,30 @@
 package nodeserv
 
 import (
-	"github.com/blueskyz/uvdt/tracker/setting"
+	"github.com/blueskyz/uvdt/node-serv/setting"
 )
+
+func CreateFilesMgr() FilesManager {
+
+	filesMgr := FilesManager{maxFileNum: setting.AppSetting.GetMaxFileNum()}
+	// maxFileNum 错误，需要修复
+	// FilesManager{
+	return filesMgr
+}
 
 /*
  * 上传，下载文件管理
  */
 type FilesManager struct {
-	maxFileNum int
+	maxFileNum uint
 
-	fileMgr []FileTasksMgr
+	fileTasksMgr []*FileTasksMgr
 }
 
-func CreateFilesMgr() FilesManager {
+func (filesMgr FilesManager) GetMaxFileNum() uint {
+	return filesMgr.maxFileNum
+}
 
-	// FilesManager{
+func (filesMgr FilesManager) GetCurrentFileNum() int {
+	return len(filesMgr.fileTasksMgr)
 }

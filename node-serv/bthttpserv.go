@@ -11,9 +11,13 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-func BtHttpServ() {
+var btFilesMgr FilesManager
+
+func BtHttpServ(filesManager FilesManager) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
+
+	btFilesMgr = filesManager
 
 	// 设置  http server 路由
 	HttpBtServMux := http.NewServeMux()
@@ -31,15 +35,19 @@ func BtHttpServ() {
 	if err != nil {
 		log.Err(err.Error())
 	}
+	return err
 }
 
 func httpBtHelloHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "hello http download serv")
+	fmt.Fprintf(w, "http serv hello")
 }
 
 /*
  * 下载资源
  */
 func httpBtHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "download http serv")
+	showDownLoadStat := fmt.Sprintf("bt http btFilesMgr maxFileNum=%d, currentNum=%d",
+		btFilesMgr.GetMaxFileNum(),
+		btFilesMgr.GetCurrentFileNum())
+	w.Write([]byte(showDownLoadStat))
 }

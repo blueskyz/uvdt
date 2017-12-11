@@ -11,7 +11,9 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-func HttpServ() {
+var filesMgr FilesManager
+
+func HttpServ(filesManager FilesManager) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -25,20 +27,27 @@ func HttpServ() {
 
 	httpServ := setting.AppSetting.GetHttpServ()
 	log.Info(fmt.Sprintf("%s:%d", httpServ.Ip, httpServ.Port))
-	fmt.Println("why ...")
 	err := http.ListenAndServe(fmt.Sprintf("%s:%d",
 		httpServ.Ip,
 		httpServ.Port),
 		HttpServMux)
+	fmt.Println("why ...")
 	if err != nil {
 		log.Err(err.Error())
 	}
+	return err
 }
 
 func httpHelloHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "hello http serv")
 }
 
+/*
+ * 管理访问
+ */
 func httpHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "http serv")
+	showDownLoadStat := fmt.Sprintf("http filesMgr maxFileNum=%d, currentNum=%d",
+		filesMgr.GetMaxFileNum(),
+		filesMgr.GetCurrentFileNum())
+	w.Write([]byte(showDownLoadStat))
 }

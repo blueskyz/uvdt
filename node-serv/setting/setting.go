@@ -27,15 +27,18 @@ type Setting struct {
 	btServ      Serv
 	trackerServ Serv
 
-	maxTaskNum    int // 并行管理的可以上传下载的文件数量，每个任务对应一个文件
-	maxMemPerTask int // 每个上传下载任务可以使用的内存大小，单位：M
-	thrNumPerDwn  int // 每个下载任务线程数量
+	maxFileNum    uint // 并行管理的可以上传下载的文件数量，每个任务对应一个文件
+	maxTaskNum    uint // 下载单个文件对应的协程数量
+	maxMemPerTask uint // 每个上传下载任务可以使用的内存大小，单位：M
 }
 
 var AppSetting Setting
 
 func init() {
-	AppSetting = Setting{maxMemPerTask: 32}
+	AppSetting = Setting{
+		maxFileNum:    128,
+		maxTaskNum:    32,
+		maxMemPerTask: 32}
 }
 
 // 设置日志文件路径
@@ -44,6 +47,18 @@ func (set *Setting) SetLogFile(logFile string) {
 }
 func (set *Setting) GetLogFile() string {
 	return set.logFile
+}
+
+func (set *Setting) GetMaxFileNum() uint {
+	return set.maxFileNum
+}
+
+func (set *Setting) GetTaskNumForFile() uint {
+	return set.maxTaskNum
+}
+
+func (set *Setting) GetMaxMemPerFile() uint {
+	return set.maxMemPerTask
 }
 
 // 设置 http server

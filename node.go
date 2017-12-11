@@ -75,18 +75,23 @@ func init() {
 
 func main() {
 	// 创建日志记录器
-	log := logger.NewAgent()
-	defer log.EndLog()
+	logAgent := logger.NewAgent()
+	defer logAgent.EndLog()
 
-	log.Info("node server start")
+	logAgent.Info("node server start")
 
 	// 1. 创建下载和分享的文件对象
 	// 2. 启动下载服务
-	filesMgr := nodeserv.FilesManager()
+	filesMgr := nodeserv.CreateFilesMgr()
 
 	// 启动资源分享服务器
-	go nodeserv.BtHttpServ()
+	go nodeserv.BtHttpServ(filesMgr)
 
 	// 启动管理服务器
-	nodeserv.HttpServ()
+	err := nodeserv.HttpServ(filesMgr)
+	if err != nil {
+		log.Printf("Err: %s", err.Error())
+		flag.Usage()
+		os.Exit(-1)
+	}
 }
