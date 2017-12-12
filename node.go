@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"os"
@@ -16,6 +17,12 @@ import (
 
 // 解析命令行参数配置
 func ParseCmd() error {
+	// 设置 root 目录，所有共享的文件必须在这个目录里，
+	// 并且提供给 node-serv 服务使用
+	rootPath := flag.String("rootpath",
+		"",
+		"root path for all resource file")
+
 	// http 管理界面
 	httpServ := flag.String("httpserv",
 		"0.0.0.0:80",
@@ -44,6 +51,12 @@ func ParseCmd() error {
 
 	// 创建配置对象
 	AppSetting := &setting.AppSetting
+	if len(*rootPath) == 0 {
+		return errors.New("root path is empty")
+	} else {
+		AppSetting.SetRootPath(*rootPath)
+	}
+
 	AppSetting.SetLogFile(*logFile)
 	err := AppSetting.SetHttpServ(*httpServ)
 	if err == nil {
@@ -82,13 +95,18 @@ func main() {
 
 	// 1. 创建下载和分享的文件对象
 	// 2. 启动下载服务
-	filesMgr := nodeserv.CreateFilesMgr()
+	filesMgr, err := nodeserv.CreateFilesMgr()
+	if err != nil {
+		log.Printf("Err: %s", err.Error())
+		flag.Usage()
+		os.Exit(-1)
+	}
 
 	// 启动资源分享服务器
 	go nodeserv.BtHttpServ(filesMgr)
 
 	// 启动管理服务器
-	err := nodeserv.HttpServ(filesMgr)
+	err = nodeserv.HttpServ(filesMgr)
 	if err != nil {
 		log.Printf("Err: %s", err.Error())
 		flag.Usage()

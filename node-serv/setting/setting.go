@@ -41,6 +41,15 @@ func init() {
 		maxMemPerTask: 32}
 }
 
+// root 目录
+func (set *Setting) SetRootPath(rootPath string) {
+	set.rootPath = rootPath
+}
+
+func (set *Setting) GetRootPath() string {
+	return set.rootPath
+}
+
 // 设置日志文件路径
 func (set *Setting) SetLogFile(logFile string) {
 	set.logFile = logFile

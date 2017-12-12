@@ -48,8 +48,24 @@ func httpHelloHandler(w http.ResponseWriter, r *http.Request) {
  * 管理访问
  */
 func httpHandler(w http.ResponseWriter, r *http.Request) {
-	showDownLoadStat := fmt.Sprintf("http filesMgr maxFileNum=%d, currentNum=%d",
+	// 输出服务器状态信息
+	showDownLoadStat := fmt.Sprintf("http filesMgr "+
+		"version=%s, "+
+		"rootPath=%s, "+
+		"maxFileNum=%d, "+
+		"currentNum=%d",
+		filesMgr.GetVersion(),
+		filesMgr.GetRootPath(),
 		filesMgr.GetMaxFileNum(),
 		filesMgr.GetCurrentFileNum())
 	w.Write([]byte(showDownLoadStat))
+
+	// 输出共享的文件列表
+	fileTasksMgr := filesMgr.GetFileTasksMgr()
+	var showFilesList string
+	for _, v := range fileTasksMgr {
+		showFilesList += v.fileMeta.filename
+	}
+	w.Write([]byte(showFilesList))
+	w.Write([]byte("hello world"))
 }

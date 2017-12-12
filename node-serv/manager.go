@@ -5,29 +5,113 @@
 package nodeserv
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path"
+
+	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-func CreateFilesMgr() *FilesManager {
+func CreateFilesMgr() (*FilesManager, error) {
 
 	filesMgr := &FilesManager{maxFileNum: setting.AppSetting.GetMaxFileNum()}
+
+	// 1. 加载配置数据库
+	err := filesMgr.LoadDB()
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 创建 下载/共享 的文件管理器
+	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, FileTasksMgr{})
+
 	// FilesManager{
-	return filesMgr
+	return filesMgr, nil
 }
 
 /*
  * 上传，下载文件管理
  */
 type FilesManager struct {
+	version    string
 	maxFileNum uint
 
-	fileTasksMgr []*FileTasksMgr
+	fileTasksMgr []FileTasksMgr
 }
 
-func (filesMgr FilesManager) GetMaxFileNum() uint {
+func (filesMgr *FilesManager) GetVersion() string {
+	return filesMgr.version
+}
+
+func (filesMgr *FilesManager) GetMaxFileNum() uint {
 	return filesMgr.maxFileNum
 }
 
-func (filesMgr FilesManager) GetCurrentFileNum() int {
+func (filesMgr *FilesManager) GetFileTasksMgr() []FileTasksMgr {
+	return filesMgr.fileTasksMgr
+}
+
+func (filesMgr *FilesManager) GetCurrentFileNum() int {
 	return len(filesMgr.fileTasksMgr)
+}
+
+func (filesMgr *FilesManager) GetRootPath() string {
+	return setting.AppSetting.GetRootPath()
+}
+
+func (filesMgr *FilesManager) LoadDB() error {
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".meta_u3v3")
+
+	// 当 root path 不存在时创建目录
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta path, %s", metaPath))
+		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
+	}
+
+	// 检查文件元数据，没有则创建
+	jsonMetaFile := path.Join(metaPath, "meta.dat")
+	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
+		blob := `{"version": "v1.0", "filelist": []}`
+		f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
+			return err
+		}
+		f.Write([]byte(blob))
+		f.Close()
+	}
+
+	// 从 json 文件中加载共享的文件元数据
+	f, err := os.Open(jsonMetaFile)
+	if err != nil {
+		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	defer f.Close()
+
+	metaData := make([]byte, 1024<<10)
+	count, err := f.Read(metaData)
+	if err != nil && err != io.EOF {
+		log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	metaData = metaData[:count]
+
+	// 解析元数据
+	jsonMeta := make(map[string]interface{})
+	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
+		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	filesMgr.version = jsonMeta["version"].(string)
+
+	return nil
 }
