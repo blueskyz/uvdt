@@ -8,10 +8,9 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-func CreateFilesMgr() FilesManager {
+func CreateFilesMgr() *FilesManager {
 
-	filesMgr := FilesManager{maxFileNum: setting.AppSetting.GetMaxFileNum()}
-	// maxFileNum 错误，需要修复
+	filesMgr := &FilesManager{maxFileNum: setting.AppSetting.GetMaxFileNum()}
 	// FilesManager{
 	return filesMgr
 }

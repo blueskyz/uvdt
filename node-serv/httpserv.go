@@ -11,11 +11,13 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-var filesMgr FilesManager
+var filesMgr *FilesManager
 
-func HttpServ(filesManager FilesManager) error {
+func HttpServ(filesManager *FilesManager) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
+
+	filesMgr = filesManager
 
 	// 设置  http server 路由
 	HttpServMux := http.NewServeMux()

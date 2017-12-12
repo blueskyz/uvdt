@@ -11,9 +11,9 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
-var btFilesMgr FilesManager
+var btFilesMgr *FilesManager
 
-func BtHttpServ(filesManager FilesManager) error {
+func BtHttpServ(filesManager *FilesManager) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -23,8 +23,10 @@ func BtHttpServ(filesManager FilesManager) error {
 	HttpBtServMux := http.NewServeMux()
 	HttpBtServMux.HandleFunc("/hello", httpBtHelloHandler)
 
+	// HttpBtServMux.HandleFunc("/test", httpBtTestHandler)
+
 	// 上传
-	HttpBtServMux.HandleFunc("/api/download", httpBtHandler)
+	HttpBtServMux.HandleFunc("/api/download", httpBtDownloadHandler)
 
 	httpBtServ := setting.AppSetting.GetBtServ()
 	log.Info(fmt.Sprintf("%s:%d", httpBtServ.Ip, httpBtServ.Port))
@@ -42,12 +44,16 @@ func httpBtHelloHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "http serv hello")
 }
 
-/*
- * 下载资源
- */
-func httpBtHandler(w http.ResponseWriter, r *http.Request) {
-	showDownLoadStat := fmt.Sprintf("bt http btFilesMgr maxFileNum=%d, currentNum=%d",
+func httpBtTestHandler(w http.ResponseWriter, r *http.Request) {
+	showDownLoadStat := fmt.Sprintf("bt test http btFilesMgr maxFileNum=%d, currentNum=%d",
 		btFilesMgr.GetMaxFileNum(),
 		btFilesMgr.GetCurrentFileNum())
 	w.Write([]byte(showDownLoadStat))
+}
+
+/*
+ * 下载资源
+ */
+func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "http serv api download")
 }
