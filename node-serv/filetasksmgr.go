@@ -76,6 +76,7 @@ type FileTasksMgr struct {
 
 func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) {
 	ftMgr.maxDownloadThrNum = maxDlThrNum
+	ftMgr.fileMeta.filename = filename
 	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,

@@ -25,9 +25,6 @@ func CreateFilesMgr() (*FilesManager, error) {
 		return nil, err
 	}
 
-	// 2. 创建 下载/共享 的文件管理器
-	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, FileTasksMgr{})
-
 	// FilesManager{
 	return filesMgr, nil
 }
@@ -69,17 +66,17 @@ func (filesMgr *FilesManager) LoadDB() error {
 
 	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".meta_u3v3")
 
-	// 当 root path 不存在时创建目录
+	// 1. 当 root path 不存在时创建目录
 	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta path, %s", metaPath))
 		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 检查文件元数据，没有则创建
+	// 2. 检查文件元数据，没有则创建
 	jsonMetaFile := path.Join(metaPath, "meta.dat")
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
-		blob := `{"version": "v1.0", "filelist": []}`
+		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
 		f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
@@ -89,7 +86,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 		f.Close()
 	}
 
-	// 从 json 文件中加载共享的文件元数据
+	// 3. 从 json 文件中加载共享的文件元数据
 	f, err := os.Open(jsonMetaFile)
 	if err != nil {
 		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
@@ -105,13 +102,21 @@ func (filesMgr *FilesManager) LoadDB() error {
 	}
 	metaData = metaData[:count]
 
-	// 解析元数据
+	// 4. 解析元数据
 	jsonMeta := make(map[string]interface{})
 	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
 		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
 		return err
 	}
 	filesMgr.version = jsonMeta["version"].(string)
+
+	// 5. 创建 下载/共享 的文件管理器
+	filesList := jsonMeta["fileslist"].([]string)
+	for _, v := range filesList {
+		fileTasksMgr := FileTasksMgr{}
+		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), v)
+		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
+	}
 
 	return nil
 }
