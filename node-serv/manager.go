@@ -111,10 +111,10 @@ func (filesMgr *FilesManager) LoadDB() error {
 	filesMgr.version = jsonMeta["version"].(string)
 
 	// 5. 创建 下载/共享 的文件管理器
-	filesList := jsonMeta["fileslist"].([]string)
+	filesList := jsonMeta["fileslist"].([]interface{})
 	for _, v := range filesList {
 		fileTasksMgr := FileTasksMgr{}
-		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), v)
+		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), v.(string))
 		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 	}
 

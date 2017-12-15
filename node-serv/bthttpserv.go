@@ -45,7 +45,7 @@ func httpBtHelloHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func httpBtTestHandler(w http.ResponseWriter, r *http.Request) {
-	showDownLoadStat := fmt.Sprintf("bt test http btFilesMgr maxFileNum=%d, currentNum=%d",
+	showDownLoadStat := fmt.Sprintf("bt test http btFilesMgr maxFileNum=%d, currentNum=%d, ",
 		btFilesMgr.GetMaxFileNum(),
 		btFilesMgr.GetCurrentFileNum())
 	w.Write([]byte(showDownLoadStat))

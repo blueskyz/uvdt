@@ -53,7 +53,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		"version=%s, "+
 		"rootPath=%s, "+
 		"maxFileNum=%d, "+
-		"currentNum=%d",
+		"currentNum=%d\n    ",
 		filesMgr.GetVersion(),
 		filesMgr.GetRootPath(),
 		filesMgr.GetMaxFileNum(),
@@ -67,5 +67,4 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		showFilesList += v.fileMeta.filename
 	}
 	w.Write([]byte(showFilesList))
-	w.Write([]byte("hello world"))
 }
