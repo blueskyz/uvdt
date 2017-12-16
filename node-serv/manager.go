@@ -18,7 +18,10 @@ import (
 
 func CreateFilesMgr() (*FilesManager, error) {
 
-	filesMgr := &FilesManager{maxFileNum: setting.AppSetting.GetMaxFileNum()}
+	filesMgr := &FilesManager{
+		maxFileNum: setting.AppSetting.GetMaxFileNum(),
+		lock:       sync.RWMutex{},
+	}
 
 	// 1. 加载配置数据库
 	err := filesMgr.LoadDB()
@@ -125,16 +128,14 @@ func (filesMgr *FilesManager) LoadDB() error {
 
 func (filesMgr *FilesManager) GetStats() (map[string]interface{}, error) {
 	// lock
+	filesMgr.lock.RLock()
+
 	stats := map[string]interface{}{
 		"version":      filesMgr.GetVersion(),
 		"root_path":    filesMgr.GetRootPath(),
 		"max_file_num": filesMgr.GetMaxFileNum(),
 		"current_num":  filesMgr.GetCurrentFileNum(),
 	}
-	/*
-		jsonStats, _ := json.Marshal(stats)
-		os.Stdout.Write(jsonStats)
-	*/
 
 	// 输出共享的文件列表
 	/*
@@ -143,8 +144,9 @@ func (filesMgr *FilesManager) GetStats() (map[string]interface{}, error) {
 		for _, v := range fileTasksMgr {
 			showFilesList += v.fileMeta.GetFileTasksStats()
 		}
-		// unlock
 	*/
+	// unlock
+	filesMgr.lock.RUnlock()
 
 	return stats, nil
 }
