@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
@@ -35,6 +36,7 @@ func CreateFilesMgr() (*FilesManager, error) {
 type FilesManager struct {
 	version    string
 	maxFileNum uint
+	lock       sync.RWMutex
 
 	fileTasksMgr []FileTasksMgr
 }
@@ -119,4 +121,30 @@ func (filesMgr *FilesManager) LoadDB() error {
 	}
 
 	return nil
+}
+
+func (filesMgr *FilesManager) GetStats() (map[string]interface{}, error) {
+	// lock
+	stats := map[string]interface{}{
+		"version":      filesMgr.GetVersion(),
+		"root_path":    filesMgr.GetRootPath(),
+		"max_file_num": filesMgr.GetMaxFileNum(),
+		"current_num":  filesMgr.GetCurrentFileNum(),
+	}
+	/*
+		jsonStats, _ := json.Marshal(stats)
+		os.Stdout.Write(jsonStats)
+	*/
+
+	// 输出共享的文件列表
+	/*
+		fileTasksMgr := filesMgr.GetFileTasksMgr()
+		var showFilesList []interface{}
+		for _, v := range fileTasksMgr {
+			showFilesList += v.fileMeta.GetFileTasksStats()
+		}
+		// unlock
+	*/
+
+	return stats, nil
 }
