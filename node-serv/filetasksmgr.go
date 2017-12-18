@@ -5,6 +5,7 @@
 package nodeserv
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -121,27 +122,66 @@ func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
 }
 
 /*
- * 创建下载并且分享文件任务
+ * 创建下载任务并分享文件的任务
  */
-func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int, torrent string) {
+func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
+	fileMd5 string,
+	destDownloadPath string,
+	torrent []byte) error {
+
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	// 1. 当下载目录不存在时创建目录
+	// 1. 当元数据目录不存在时创建目录
+	//    保存种子文件: root/.meta/torrent.torr
+	//    下载状态文件: root/.meta/downloadfile.meta
+	//	  创建元数据目录，每个下载文件任务具有独立的目录
+	metaPath := path.Join(setting.AppSetting.GetRootPath(),
+		".meta",
+		fileMd5)
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta path %s", metaPath))
+		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
+	}
+
+	// 2. 当下载目录不存在时创建目录
 	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
-	downloadPath := path.Join(setting.AppSetting.GetRootPath(), "downloads")
+	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
+		"downloads",
+		destDownloadPath)
 	if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create download path %s", downloadPath))
 		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
 	}
+
 	// 2. 保存种子文件
+	f, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Err(fmt.Sprintf("Save torrent file fail, %s", fileMd5))
+		return err
+	}
+
 	// 3. 创建元数据文件
+	jsonMetaFile := path.Join(metaPath, "meta.dat")
+	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
+		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
+		f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
+			return err
+		}
+		f.Write([]byte(blob))
+		f.Close()
+	}
 
 	// 4. 添加下载任务到本地文件数据库
 	// 5. 调用 Start 开始下载任务
+
+	return nil
 }
 
-func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) {
+func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -154,53 +194,37 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) {
 		filename)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create download filePath, %s", filePath))
-		os.MkdirAll(filePath, os.ModeDir|os.ModePerm)
+		return err
 	}
 
 	// 2. 读取元数据文件
 	ftMgr.fileMeta.fileMetaName = path.Join(filePath, filename, ".meta")
+	jsonMetaFile := ftMgr.fileMeta.fileMetaName
 
-	/*
-		// 检查创建元数据文件
-		// 2. 检查文件元数据，没有则创建
-		jsonMetaFile := path.Join(metaPath, "meta.dat")
-		if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
-			log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
-			blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
-			f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
-			if err != nil {
-				log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
-				return err
-			}
-			f.Write([]byte(blob))
-			f.Close()
-		}
+	// 3. 从 json 文件中加载共享的文件元数据
+	f, err := os.Open(jsonMetaFile)
+	if err != nil {
+		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	defer f.Close()
 
-		// 3. 从 json 文件中加载共享的文件元数据
-		f, err := os.Open(jsonMetaFile)
-		if err != nil {
-			log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
-			return err
-		}
-		defer f.Close()
+	metaData := make([]byte, 1024<<10)
+	count, err := f.Read(metaData)
+	if err != nil && err != io.EOF {
+		log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	metaData = metaData[:count]
 
-		metaData := make([]byte, 1024<<10)
-		count, err := f.Read(metaData)
-		if err != nil && err != io.EOF {
-			log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
-			return err
-		}
-		metaData = metaData[:count]
+	// 4. 解析元数据
+	jsonMeta := make(map[string]interface{})
+	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
+		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
+		return err
+	}
 
-		// 4. 解析元数据
-		jsonMeta := make(map[string]interface{})
-		if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
-			log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
-			return err
-		}
-	*/
-
-	// 创建下载 worker
+	// 5. 创建下载 worker
 	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
@@ -208,4 +232,6 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) {
 	}
 
 	// 初始化统计数据
+
+	return nil
 }
