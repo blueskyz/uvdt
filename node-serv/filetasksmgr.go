@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	// "sync"
+	"io"
 	"time"
 
 	"github.com/blueskyz/uvdt/logger"
@@ -123,6 +124,11 @@ func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
 
 /*
  * 创建下载任务并分享文件的任务
+ *
+ * 1. 当元数据目录不存在时创建目录
+ * 2. 保存种子文件: root/.meta/torrent.torr
+ * 3. 创建下载状态文件: root/.meta/downloadfile.meta
+ * 4. 创建元数据目录和文件，每个下载文件任务具有独立的目录
  */
 func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	fileMd5 string,
@@ -144,7 +150,15 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 当下载目录不存在时创建目录
+	// 2. 保存种子文件
+	f, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Err(fmt.Sprintf("Save torrent file fail, %s", fileMd5))
+		f.Write(torrent)
+		return err
+	}
+
+	// 3. 当下载目录不存在时创建目录
 	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
 	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
 		"downloads",
@@ -154,14 +168,7 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 保存种子文件
-	f, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		log.Err(fmt.Sprintf("Save torrent file fail, %s", fileMd5))
-		return err
-	}
-
-	// 3. 创建元数据文件
+	// 4. 创建元数据目录，创建元数据文件
 	jsonMetaFile := path.Join(metaPath, "meta.dat")
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
