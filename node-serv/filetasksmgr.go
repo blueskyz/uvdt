@@ -151,12 +151,13 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	// 2. 保存种子文件
-	f, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
+	fTorrent, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
+	defer fTorrent.Close()
 	if err != nil {
 		log.Err(fmt.Sprintf("Save torrent file fail, %s", fileMd5))
-		f.Write(torrent)
 		return err
 	}
+	fTorrent.Write(torrent)
 
 	// 3. 当下载目录不存在时创建目录
 	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
@@ -173,16 +174,18 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
 		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
-		f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+		fMeta, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
 			return err
 		}
-		f.Write([]byte(blob))
-		f.Close()
+		defer fMeta.Close()
+		fMeta.Write([]byte(blob))
+	} else if os.IsExist(err) {
+		log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+		return err
 	}
 
-	// 4. 添加下载任务到本地文件数据库
 	// 5. 调用 Start 开始下载任务
 
 	return nil
