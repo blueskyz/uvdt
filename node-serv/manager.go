@@ -69,7 +69,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".meta_u3v3")
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".meta")
 
 	// 1. 当 root path 不存在时创建目录
 	if _, err := os.Stat(metaPath); os.IsNotExist(err) {

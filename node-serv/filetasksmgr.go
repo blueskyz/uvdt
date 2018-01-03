@@ -126,8 +126,8 @@ func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
  * 创建下载任务并分享文件的任务
  *
  * 1. 当元数据目录不存在时创建目录
- * 2. 保存种子文件: root/.meta/torrent.torr
- * 3. 创建下载状态文件: root/.meta/downloadfile.meta
+ * 2. 保存种子文件: root/.meta/fileMd5/torrent.torr
+ * 3. 创建下载状态文件: root/.meta/fileMd5/downloadfile.meta
  * 4. 创建元数据目录和文件，每个下载文件任务具有独立的目录
  */
 func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
@@ -139,8 +139,6 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	defer log.EndLog()
 
 	// 1. 当元数据目录不存在时创建目录
-	//    保存种子文件: root/.meta/torrent.torr
-	//    下载状态文件: root/.meta/downloadfile.meta
 	//	  创建元数据目录，每个下载文件任务具有独立的目录
 	metaPath := path.Join(setting.AppSetting.GetRootPath(),
 		".meta",
@@ -150,11 +148,12 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 保存种子文件
-	fTorrent, err := os.OpenFile(fileMd5, os.O_RDWR|os.O_CREATE, 0644)
+	// 2. 保存种子文件: root/.meta/fileMd5/torrent.torr
+	torrFile := path.Join(metaPath, fileMd5, ".torr")
+	fTorrent, err := os.OpenFile(torrFile, os.O_RDWR|os.O_CREATE, 0644)
 	defer fTorrent.Close()
 	if err != nil {
-		log.Err(fmt.Sprintf("Save torrent file fail, %s", fileMd5))
+		log.Err(fmt.Sprintf("Save torrent file fail, %s", torrFile))
 		return err
 	}
 	fTorrent.Write(torrent)
@@ -170,6 +169,7 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	// 4. 创建元数据目录，创建元数据文件
+	//    下载状态文件: root/.meta/fileMd5/downloadfile.meta
 	jsonMetaFile := path.Join(metaPath, "meta.dat")
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
@@ -187,6 +187,11 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	// 5. 调用 Start 开始下载任务
+	/*
+		fileTasksMgr := FileTasksMgr{}
+		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), filename)
+		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
+	*/
 
 	return nil
 }
