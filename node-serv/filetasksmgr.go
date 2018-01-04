@@ -25,10 +25,12 @@ import (
 type BlockMeta struct {
 	blockMd5  string // 每个分片的 md5
 	blockStat uint   // 0: 已完成, 1: 下载中，2: 未下载
+	failcount uint   // 每分钟失败次数，无法下载，当大于等于10次，下1分钟内不下载此块
+	lasttime  int    // 最后下载时间
 }
 
 type FileMeta struct {
-	filename     string
+	filePath     string
 	fileMd5      string
 	fileMetaName string
 	filesize     int
@@ -37,8 +39,45 @@ type FileMeta struct {
 	blocks       []BlockMeta
 }
 
-func (f *FileMeta) LoadFileMeta(filePath string) (bool, error) {
-	return true, nil
+func (fileMeta *FileMeta) LoadFileMeta(md5 string) error {
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// 1. 获取元数据路径
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", md5)
+	if _, err := os.Stat(metaPath); err != nil {
+		log.Err(fmt.Sprintf("Get meta path %s fail", metaPath))
+		return err
+	}
+
+	// 2. 读取元数据文件
+	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
+	jsonMetaFile := fileMeta.fileMetaName
+
+	// 3. 从 json 文件中加载共享的文件元数据
+	f, err := os.Open(jsonMetaFile)
+	if err != nil {
+		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	defer f.Close()
+
+	metaData := make([]byte, 1024<<10)
+	count, err := f.Read(metaData)
+	if err != nil && err != io.EOF {
+		log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
+		return err
+	}
+	metaData = metaData[:count]
+
+	// 4. 解析元数据
+	jsonMeta := make(map[string]interface{})
+	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
+		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
+		return err
+	}
+
+	return nil
 }
 
 type JobData struct {
@@ -49,7 +88,7 @@ type JobData struct {
 // worker 定义执行具体的下载工作
 type Worker struct {
 	id       int
-	filename string // 文件绝对路径
+	filePath string // 文件绝对路径
 
 	stop     chan bool    // 退出标志
 	jobQueue chan JobData // 下载 job
@@ -81,7 +120,7 @@ func (w *Worker) Run() {
 				// 下载数据
 				w.lastDownloadBeginTime = time.Now()
 				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-				log.Info(fmt.Sprintf("Worker[%d] do length", jobData.length))
+				log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
 
 				// 写入文件
 			case _ = <-w.stop: // 停止工作
@@ -196,7 +235,10 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	return nil
 }
 
-func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) error {
+func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
+	filePath string,
+	md5 string) error {
+
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -204,46 +246,16 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int, filename string) error {
 	ftMgr.maxDownloadThrNum = maxDlThrNum
 
 	// 1. 当下载目录不存在时创建目录
-	filePath := path.Join(setting.AppSetting.GetRootPath(),
-		"downloads",
-		filename)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create download filePath, %s", filePath))
+		log.Err(fmt.Sprintf("Create download filePath, %s", filePath))
 		return err
 	}
 
-	// 2. 读取元数据文件
-	ftMgr.fileMeta.fileMetaName = path.Join(filePath, filename, ".meta")
-	jsonMetaFile := ftMgr.fileMeta.fileMetaName
-
-	// 3. 从 json 文件中加载共享的文件元数据
-	f, err := os.Open(jsonMetaFile)
-	if err != nil {
-		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
-		return err
-	}
-	defer f.Close()
-
-	metaData := make([]byte, 1024<<10)
-	count, err := f.Read(metaData)
-	if err != nil && err != io.EOF {
-		log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
-		return err
-	}
-	metaData = metaData[:count]
-
-	// 4. 解析元数据
-	jsonMeta := make(map[string]interface{})
-	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
-		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
-		return err
-	}
-
-	// 5. 创建下载 worker
+	// 6. 创建下载 worker
 	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
-			&Worker{id: i, filename: filename, stop: make(chan bool), jobQueue: jobQueue})
+			&Worker{id: i, filePath: filePath, stop: make(chan bool), jobQueue: jobQueue})
 	}
 
 	// 初始化统计数据

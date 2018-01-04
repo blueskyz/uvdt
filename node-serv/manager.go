@@ -81,7 +81,8 @@ func (filesMgr *FilesManager) LoadDB() error {
 	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
 	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
-		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
+		// blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
+		blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
@@ -118,8 +119,11 @@ func (filesMgr *FilesManager) LoadDB() error {
 	// 5. 创建 下载/共享 的文件管理器
 	filesList := jsonMeta["fileslist"].([]interface{})
 	for _, v := range filesList {
+		fileInfo := v.(map[string]interface{})
 		fileTasksMgr := FileTasksMgr{}
-		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), v.(string))
+		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()),
+			fileInfo["filename"].(string),
+			fileInfo["md5"].(string))
 		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 	}
 
