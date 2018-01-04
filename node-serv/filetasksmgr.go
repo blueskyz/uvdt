@@ -125,10 +125,10 @@ func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
 /*
  * 创建下载任务并分享文件的任务
  *
- * 1. 当元数据目录不存在时创建目录
- * 2. 保存种子文件: root/.meta/fileMd5/torrent.torr
- * 3. 创建下载状态文件: root/.meta/fileMd5/downloadfile.meta
- * 4. 创建元数据目录和文件，每个下载文件任务具有独立的目录
+ * 1. 当元数据目录不存在时创建目录，每个下载文件一个独立目录
+ * 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
+ * 3. 创建下载状态文件: root/.uvdt/{fileMd5}/{fileMd5}.meta
+ * 4. 下载目录不存在时创建目录，每个下载文件任务具有独立的目录
  */
 func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	fileMd5 string,
@@ -138,39 +138,27 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	// 1. 当元数据目录不存在时创建目录
+	// 1. 当共享文件的元数据目录不存在时创建目录
 	//	  创建元数据目录，每个下载文件任务具有独立的目录
-	metaPath := path.Join(setting.AppSetting.GetRootPath(),
-		".meta",
-		fileMd5)
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", fileMd5)
 	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta path %s", metaPath))
 		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 保存种子文件: root/.meta/fileMd5/torrent.torr
-	torrFile := path.Join(metaPath, fileMd5, ".torr")
-	fTorrent, err := os.OpenFile(torrFile, os.O_RDWR|os.O_CREATE, 0644)
+	// 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
+	torFile := path.Join(metaPath, fileMd5, ".tor")
+	fTorrent, err := os.OpenFile(torFile, os.O_RDWR|os.O_CREATE, 0644)
 	defer fTorrent.Close()
 	if err != nil {
-		log.Err(fmt.Sprintf("Save torrent file fail, %s", torrFile))
+		log.Err(fmt.Sprintf("Save torrent file fail, %s", torFile))
 		return err
 	}
 	fTorrent.Write(torrent)
 
-	// 3. 当下载目录不存在时创建目录
-	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
-	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
-		"downloads",
-		destDownloadPath)
-	if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create download path %s", downloadPath))
-		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
-	}
-
-	// 4. 创建元数据目录，创建元数据文件
-	//    下载状态文件: root/.meta/fileMd5/downloadfile.meta
-	jsonMetaFile := path.Join(metaPath, "meta.dat")
+	// 3. 创建元数据目录，创建元数据文件
+	//    下载状态文件: root/.uvdt/{fileMd5}/{fileMd5}.meta
+	jsonMetaFile := path.Join(metaPath, fileMd5, ".meta")
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
 		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
@@ -186,7 +174,19 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 		return err
 	}
 
-	// 5. 调用 Start 开始下载任务
+	// 4. 当下载目录不存在时创建目录
+	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
+	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
+		"downloads",
+		destDownloadPath)
+	if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create download path %s", downloadPath))
+		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
+	}
+
+	// 5. 添加到本地共享文件管理的数据库
+
+	// 6. 调用 Start 开始下载任务
 	/*
 		fileTasksMgr := FileTasksMgr{}
 		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), filename)

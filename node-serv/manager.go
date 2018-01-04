@@ -69,22 +69,22 @@ func (filesMgr *FilesManager) LoadDB() error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".meta")
+	uvdtRootPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt")
 
 	// 1. 当 root path 不存在时创建目录
-	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create meta path, %s", metaPath))
-		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
+	if _, err := os.Stat(uvdtRootPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create uvdt root path, %s", uvdtRootPath))
+		os.MkdirAll(uvdtRootPath, os.ModeDir|os.ModePerm)
 	}
 
 	// 2. 检查文件元数据，没有则创建
-	jsonMetaFile := path.Join(metaPath, "meta.dat")
-	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
+	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
+	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
 		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
-		f, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
-			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
+			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
 			return err
 		}
 		f.Write([]byte(blob))
@@ -92,25 +92,25 @@ func (filesMgr *FilesManager) LoadDB() error {
 	}
 
 	// 3. 从 json 文件中加载共享的文件元数据
-	f, err := os.Open(jsonMetaFile)
+	f, err := os.Open(uvdtJsonDataFile)
 	if err != nil {
-		log.Err(fmt.Sprintf("Open meta data fail, %s", jsonMetaFile))
+		log.Err(fmt.Sprintf("Open uvdt json data fail, %s", uvdtJsonDataFile))
 		return err
 	}
 	defer f.Close()
 
-	metaData := make([]byte, 1024<<10)
-	count, err := f.Read(metaData)
+	uvdtData := make([]byte, 1024<<10)
+	count, err := f.Read(uvdtData)
 	if err != nil && err != io.EOF {
-		log.Err(fmt.Sprintf("Read meta data fail, %s", jsonMetaFile))
+		log.Err(fmt.Sprintf("Read uvdt data fail, %s", uvdtJsonDataFile))
 		return err
 	}
-	metaData = metaData[:count]
+	uvdtData = uvdtData[:count]
 
 	// 4. 解析元数据
 	jsonMeta := make(map[string]interface{})
-	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
-		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
+	if err := json.Unmarshal(uvdtData, &jsonMeta); err != nil {
+		log.Err(fmt.Sprintf("Parse json uvdt data fail, %s", uvdtJsonDataFile))
 		return err
 	}
 	filesMgr.version = jsonMeta["version"].(string)
