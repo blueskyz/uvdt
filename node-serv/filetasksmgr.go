@@ -6,12 +6,13 @@ package nodeserv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path"
-	// "sync"
-	"io"
+	"sync"
 	"time"
 
 	"github.com/blueskyz/uvdt/logger"
@@ -19,27 +20,37 @@ import (
 )
 
 /*
+ * 块状态
+ */
+const (
+	BS_UNDOWNLOAD  = iota // 0
+	BS_COMPLETE           // 1
+	BS_DOWNLOADING        // 2
+)
+
+/*
  * 上传，下载文件管理
  */
-
 type BlockMeta struct {
 	blockMd5  string // 每个分片的 md5
-	blockStat uint   // 0: 已完成, 1: 下载中，2: 未下载
-	failcount uint   // 每分钟失败次数，无法下载，当大于等于10次，下1分钟内不下载此块
+	blockStat uint   // 0: 未下载，1: 已完成, 2: 下载中
+	failCount uint   // 每分钟失败次数，无法下载，当大于等于10次，下1分钟内不下载此块
 	lasttime  int    // 最后下载时间
 }
 
 type FileMeta struct {
-	filePath     string
-	fileMd5      string
-	fileMetaName string
-	filesize     int
-	blockCount   int // 块数量
-	blockSize    int // 每块大小
+	stat uint // 0: 无状态（不分享），1: 下载中（分享中）， 2: 已停止，3: 等待下载，4: 分享中
+
+	fileMetaName string // 元文件位置
+	filePath     string // 下载文件绝对路径
+	fileMd5      string // 下载文件 md5
+	fileSize     int    // 文件大小
+	blockCount   int    // 块数量
+	blockSize    int    // 每块大小
 	blocks       []BlockMeta
 }
 
-func (fileMeta *FileMeta) LoadFileMeta(md5 string) error {
+func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -50,7 +61,65 @@ func (fileMeta *FileMeta) LoadFileMeta(md5 string) error {
 		return err
 	}
 
-	// 2. 读取元数据文件
+	// 2. 获取元数据文件绝对路径
+	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
+
+	meta := make(map[string]interface{})
+	meta["stat"] = fileMeta.stat
+	meta["filepath"] = fileMeta.filePath
+	meta["filemd5"] = fileMeta.fileMd5
+
+	meta["filesize"] = fileMeta.fileSize
+	if fileMeta.fileSize <= 0 {
+		return errors.New(fmt.Sprintf("file size is %d", fileMeta.fileSize))
+	}
+	meta["blockcount"] = fileMeta.blockCount
+	if fileMeta.blockCount <= 0 {
+		return errors.New(fmt.Sprintf("block count is %d", fileMeta.blockCount))
+	}
+	meta["blocksize"] = fileMeta.blockSize
+	if fileMeta.blockSize <= 0 {
+		return errors.New(fmt.Sprintf("block size is %d", fileMeta.fileSize))
+	}
+
+	blocksStat := []uint8{}
+	for _, v := range fileMeta.blocks {
+		if v.blockStat == BS_COMPLETE {
+			blocksStat = append(blocksStat, 1)
+		} else {
+			blocksStat = append(blocksStat, 0)
+		}
+	}
+	meta["blocks"] = blocksStat
+	metaData, err := json.Marshal(meta)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(fileMeta.fileMetaName,
+		os.O_WRONLY|os.O_CREATE,
+		644)
+	defer f.Close()
+	if err != nil {
+		return err
+	}
+	f.Write(metaData)
+
+	return nil
+}
+
+func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// 1. 获取元数据路径
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", md5)
+	if _, err := os.Stat(metaPath); err != nil {
+		log.Err(fmt.Sprintf("Get meta path %s fail", metaPath))
+		return err
+	}
+
+	// 2. 获取元数据文件绝对路径
 	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
 	jsonMetaFile := fileMeta.fileMetaName
 
@@ -71,18 +140,42 @@ func (fileMeta *FileMeta) LoadFileMeta(md5 string) error {
 	metaData = metaData[:count]
 
 	// 4. 解析元数据
-	jsonMeta := make(map[string]interface{})
-	if err := json.Unmarshal(metaData, &jsonMeta); err != nil {
+	meta := make(map[string]interface{})
+	if err := json.Unmarshal(metaData, &meta); err != nil {
 		log.Err(fmt.Sprintf("Parse json meta data fail, %s", jsonMetaFile))
 		return err
 	}
+
+	fileMeta.stat = meta["stat"].(uint)
+	fileMeta.filePath = meta["filepath"].(string)
+	fileMeta.fileMd5 = meta["filemd5"].(string)
+
+	fileMeta.blockCount = meta["blockcount"].(int)
+	fileMeta.fileSize = meta["filesize"].(int)
+	fileMeta.blockSize = meta["blocksize"].(int)
+
+	blocks := []BlockMeta{}
+	for _, v := range meta["blocks"].([]interface{}) {
+		if v == 1 {
+			blocks = append(blocks, BlockMeta{blockStat: 1})
+		} else {
+			blocks = append(blocks, BlockMeta{blockStat: 0})
+		}
+	}
+	fileMeta.blocks = blocks
 
 	return nil
 }
 
 type JobData struct {
-	length uint
-	data   []byte
+	pos    uint // 文件内位置
+	length uint // 数据长度
+}
+
+type BlockData struct {
+	pos    uint   // 文件内位置
+	length uint   // 数据长度
+	data   []byte // 下载的数据内容
 }
 
 // worker 定义执行具体的下载工作
@@ -104,15 +197,6 @@ func (w *Worker) Run() {
 	go func() {
 		log := logger.NewAgent()
 		defer log.EndLog()
-
-		// 每个协程单独打开文件
-		/*
-			f, err := os.OpenFile(w.filename, os.O_RDWR)
-			if err != nil {
-				return
-			}
-			defer f.Close()
-		*/
 
 		for {
 			select {
@@ -143,6 +227,8 @@ func (w *Worker) Download(jobData JobData) error {
 // 1. 管理下载的任务
 // 2. 设置任务状态
 type FileTasksMgr struct {
+	lock sync.RWMutex
+
 	maxDownloadThrNum int // 最大下载协程
 
 	fileMeta     FileMeta
@@ -239,6 +325,9 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	filePath string,
 	md5 string) error {
 
+	filesMgr.lock.RLock()
+	defer filesMgr.lock.RUnlock()
+
 	log := logger.NewAgent()
 	defer log.EndLog()
 
@@ -251,12 +340,14 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 		return err
 	}
 
-	// 6. 创建下载 worker
+	// 2. 创建下载 worker
 	jobQueue := make(chan JobData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
 			&Worker{id: i, filePath: filePath, stop: make(chan bool), jobQueue: jobQueue})
 	}
+
+	//
 
 	// 初始化统计数据
 

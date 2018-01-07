@@ -82,7 +82,8 @@ func (filesMgr *FilesManager) LoadDB() error {
 	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
 		// blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
-		blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
+		blob := `{"version": "v1.0",
+		"fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
@@ -120,7 +121,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 	filesList := jsonMeta["fileslist"].([]interface{})
 	for _, v := range filesList {
 		fileInfo := v.(map[string]interface{})
-		fileTasksMgr := FileTasksMgr{}
+		fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
 		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()),
 			fileInfo["filename"].(string),
 			fileInfo["md5"].(string))
@@ -133,6 +134,8 @@ func (filesMgr *FilesManager) LoadDB() error {
 func (filesMgr *FilesManager) GetStats() (map[string]interface{}, error) {
 	// lock
 	filesMgr.lock.RLock()
+	// unlock
+	defer filesMgr.lock.RUnlock()
 
 	stats := map[string]interface{}{
 		"version":      filesMgr.GetVersion(),
@@ -149,8 +152,6 @@ func (filesMgr *FilesManager) GetStats() (map[string]interface{}, error) {
 			showFilesList += v.fileMeta.GetFileTasksStats()
 		}
 	*/
-	// unlock
-	filesMgr.lock.RUnlock()
 
 	return stats, nil
 }
