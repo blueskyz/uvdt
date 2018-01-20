@@ -173,6 +173,7 @@ type JobData struct {
 }
 
 type BlockData struct {
+	workId int    // 执行下载任务的工作协程id
 	pos    uint   // 文件内位置
 	length uint   // 数据长度
 	data   []byte // 下载的数据内容
@@ -183,8 +184,9 @@ type Worker struct {
 	id       int
 	filePath string // 文件绝对路径
 
-	stop     chan bool    // 退出标志
-	jobQueue chan JobData // 下载 job
+	stop      chan bool      // 退出标志
+	jobQueue  chan JobData   // 下载 job
+	dataQueue chan BlockData // 返回下载的数据块
 
 	stat                  uint      // 0: 运行中，1: 下载中，2: 已停止
 	lastDownloadBeginTime time.Time // 最后下载开始时间, 每完开始一次下载更新一次，用来控制下载阻塞，未完成状态的清理
@@ -205,6 +207,10 @@ func (w *Worker) Run() {
 				w.lastDownloadBeginTime = time.Now()
 				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
 				log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
+				w.dataQueue <- BlockData{workId: w.id,
+					pos:    jobData.pos,
+					length: jobData.length,
+					data:   []byte{}}
 
 				// 写入文件
 			case _ = <-w.stop: // 停止工作
@@ -227,7 +233,9 @@ func (w *Worker) Download(jobData JobData) error {
 // 1. 管理下载的任务
 // 2. 设置任务状态
 type FileTasksMgr struct {
-	lock sync.RWMutex
+	lock      sync.RWMutex
+	dataQueue chan BlockData
+	stop      chan bool
 
 	maxDownloadThrNum int // 最大下载协程
 
@@ -325,8 +333,8 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	filePath string,
 	md5 string) error {
 
-	filesMgr.lock.RLock()
-	defer filesMgr.lock.RUnlock()
+	ftMgr.lock.Lock()
+	defer ftMgr.lock.Unlock()
 
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -342,14 +350,46 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 
 	// 2. 创建下载 worker
 	jobQueue := make(chan JobData)
+	ftMgr.dataQueue = make(chan BlockData)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
-			&Worker{id: i, filePath: filePath, stop: make(chan bool), jobQueue: jobQueue})
+			&Worker{
+				id:        i,
+				filePath:  filePath,
+				stop:      make(chan bool),
+				jobQueue:  jobQueue,
+				dataQueue: ftMgr.dataQueue})
+	}
+
+	for _, v := range ftMgr.downloadWkrs {
+		v.Run()
 	}
 
 	//
 
 	// 初始化统计数据
+
+	// 创建保存数据的控制协程
+	ftMgr.stop = make(chan bool)
+	go func() {
+		log := logger.NewAgent()
+		defer log.EndLog()
+
+		for {
+			select {
+			case blockData := <-ftMgr.dataQueue: // 等待获取下载数据片段的任务
+				// 下载数据
+				time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
+				log.Info(fmt.Sprintf("Worker[%d] do length %d", blockData.workId, blockData.length))
+				jobQueue <- JobData{pos: 3, length: 1024}
+
+				// 写入文件
+			case _ = <-ftMgr.stop: // 停止工作
+				log.Info(fmt.Sprintf("Task stop"))
+				return
+			}
+		}
+	}()
 
 	return nil
 }
