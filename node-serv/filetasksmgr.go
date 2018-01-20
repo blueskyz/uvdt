@@ -349,8 +349,8 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	}
 
 	// 2. 创建下载 worker
-	jobQueue := make(chan JobData)
-	ftMgr.dataQueue = make(chan BlockData)
+	jobQueue := make(chan JobData, ftMgr.maxDownloadThrNum)
+	ftMgr.dataQueue = make(chan BlockData, ftMgr.maxDownloadThrNum)
 	for i := 0; i < ftMgr.maxDownloadThrNum; i++ {
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
 			&Worker{
@@ -377,6 +377,9 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 
 		for {
 			select {
+			case <-time.After(time.Second): // 超时, 判断是否需要添加下载数据任务队列中
+				jobQueue <- JobData{pos: 3, length: 1024}
+
 			case blockData := <-ftMgr.dataQueue: // 等待获取下载数据片段的任务
 				// 下载数据
 				time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
