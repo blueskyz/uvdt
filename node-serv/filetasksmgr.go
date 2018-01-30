@@ -229,6 +229,7 @@ func (w *Worker) Download(jobData JobData) error {
 	return nil
 }
 
+// ==========================================================================
 // 文件任务管理
 // 1. 管理下载的任务
 // 2. 设置任务状态
@@ -242,7 +243,14 @@ type FileTasksMgr struct {
 	fileMeta     FileMeta
 	downloadWkrs []*Worker
 
-	stat                  uint      // 0: 无状态（不分享），1: 下载中（分享中）， 2: 已停止，3: 等待下载，4: 分享中
+	/*
+		0: 无状态（不分享）
+		1: 下载中（分享中）
+		2: 已停止
+		3: 等待下载
+		4: 分享中
+	*/
+	stat                  uint
 	lastDownloadBeginTime time.Time // 下载开始时间
 	downloadCompleteTime  time.Time // 下载完成时间
 	totalDownload         int64     // 总共下载的数据量，单位字节
