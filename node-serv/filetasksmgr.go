@@ -207,12 +207,14 @@ func (w *Worker) Run() {
 				w.lastDownloadBeginTime = time.Now()
 				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
 				log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
+				w.Download(jobData)
+
+				// 写入存储数据的管道
 				w.dataQueue <- BlockData{workId: w.id,
 					pos:    jobData.pos,
 					length: jobData.length,
 					data:   []byte{}}
 
-				// 写入文件
 			case _ = <-w.stop: // 停止工作
 				log.Info(fmt.Sprintf("Worker[%d] stop", w.id))
 				return

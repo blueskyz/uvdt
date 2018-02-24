@@ -65,6 +65,11 @@ func (filesMgr *FilesManager) GetRootPath() string {
 }
 
 func (filesMgr *FilesManager) LoadDB() error {
+	// lock
+	filesMgr.lock.RLock()
+	// unlock
+	defer filesMgr.lock.RUnlock()
+
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -82,6 +87,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
 		// blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
+		// blob := `{"version": "v1.0", "fileslist": []}`
 		blob := `{"version": "v1.0",
 		"fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
