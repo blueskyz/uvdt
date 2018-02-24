@@ -339,6 +339,14 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	return nil
 }
 
+func (ftMgr *FileTasksMgr) GetJob() JobData {
+	ftMgr.lock.Lock()
+	defer ftMgr.lock.Unlock()
+
+	// 获取下一个可下载块
+	return JobData{pos: 3, length: 1024}
+}
+
 func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	filePath string,
 	md5 string) error {
