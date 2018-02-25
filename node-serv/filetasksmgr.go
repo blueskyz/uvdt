@@ -26,6 +26,7 @@ const (
 	BS_UNDOWNLOAD  = iota // 0
 	BS_COMPLETE           // 1
 	BS_DOWNLOADING        // 2
+	BS_UNCOMPLETE         // 3: 下载未完成（下载失败）
 )
 
 /*
@@ -33,16 +34,34 @@ const (
  */
 type BlockMeta struct {
 	blockMd5  string // 每个分片的 md5
-	blockStat uint   // 0: 未下载，1: 已完成, 2: 下载中
+	blockStat uint   // 0: 未下载，1: 已完成, 2: 下载中，3: 下载失败
 	failCount uint   // 每分钟失败次数，无法下载，当大于等于10次，下1分钟内不下载此块
 	lasttime  int    // 最后下载时间
 }
 
+/*
+ * 0: noshare无状态（不分享）
+ * 1: download: 下载中（分享中）
+ * 2: stop: 已停止
+ * 3: pause: 等待下载
+ * 4: share: 分享中
+ */
+const (
+	FM_NOSHARE = iota
+	FM_DOWNLOAD
+	FM_STOP
+	FM_PAUSE
+	FM_SHARE
+)
+
 type FileMeta struct {
-	stat uint // 0: 无状态（不分享），1: 下载中（分享中）， 2: 已停止，3: 等待下载，4: 分享中
+	version     string
+	contenttype string // singlefile, multifile
+
+	stat uint
 
 	fileMetaName string // 元文件位置
-	filePath     string // 下载文件绝对路径
+	fileDlPath   string // 下载文件绝对路径
 	fileMd5      string // 下载文件 md5
 	fileSize     int    // 文件大小
 	blockCount   int    // 块数量
@@ -50,6 +69,9 @@ type FileMeta struct {
 	blocks       []BlockMeta
 }
 
+/*
+ * 上一层调用方加锁，控制并发访问的冲突
+ */
 func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -63,10 +85,13 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 
 	// 2. 获取元数据文件绝对路径
 	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
+	log.Info(fmt.Sprintf("Get meta file %s", fileMeta.fileMetaName))
 
 	meta := make(map[string]interface{})
+	meta["version"] = fileMeta.version
+	meta["contenttype"] = fileMeta.contenttype
 	meta["stat"] = fileMeta.stat
-	meta["filepath"] = fileMeta.filePath
+	meta["filedlpath"] = fileMeta.fileDlPath
 	meta["filemd5"] = fileMeta.fileMd5
 
 	meta["filesize"] = fileMeta.fileSize
@@ -82,13 +107,16 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 		return errors.New(fmt.Sprintf("block size is %d", fileMeta.fileSize))
 	}
 
-	blocksStat := []uint8{}
+	blocksStat := []map[string]string{}
 	for _, v := range fileMeta.blocks {
+		block := make(map[string]string)
+		block["md5"] = v.blockMd5
 		if v.blockStat == BS_COMPLETE {
-			blocksStat = append(blocksStat, 1)
+			block["blockstat"] = "1"
 		} else {
-			blocksStat = append(blocksStat, 0)
+			block["blockstat"] = "0"
 		}
+		blocksStat = append(blocksStat, block)
 	}
 	meta["blocks"] = blocksStat
 	metaData, err := json.Marshal(meta)
@@ -108,6 +136,9 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 	return nil
 }
 
+/*
+ * 上一层调用方加锁，控制并发访问的冲突
+ */
 func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -146,8 +177,10 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 		return err
 	}
 
+	fileMeta.version = meta["version"].(string)
+	fileMeta.contenttype = meta["contenttype"].(string)
 	fileMeta.stat = meta["stat"].(uint)
-	fileMeta.filePath = meta["filepath"].(string)
+	fileMeta.fileDlPath = meta["filedlpath"].(string)
 	fileMeta.fileMd5 = meta["filemd5"].(string)
 
 	fileMeta.blockCount = meta["blockcount"].(int)
@@ -155,12 +188,15 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	fileMeta.blockSize = meta["blocksize"].(int)
 
 	blocks := []BlockMeta{}
-	for _, v := range meta["blocks"].([]interface{}) {
-		if v == 1 {
-			blocks = append(blocks, BlockMeta{blockStat: 1})
+	for _, v := range meta["blocks"].([]map[string]string) {
+		blockMeta := BlockMeta{}
+		blockMeta.blockMd5 = v["md5"]
+		if v["blockstat"] == "1" {
+			blockMeta.blockStat = 1
 		} else {
-			blocks = append(blocks, BlockMeta{blockStat: 0})
+			blockMeta.blockStat = 0
 		}
+		blocks = append(blocks, blockMeta)
 	}
 	fileMeta.blocks = blocks
 
@@ -269,8 +305,8 @@ func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
  * 创建下载任务并分享文件的任务
  *
  * 1. 当元数据目录不存在时创建目录，每个下载文件一个独立目录
- * 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
- * 3. 创建下载状态文件: root/.uvdt/{fileMd5}/{fileMd5}.meta
+ * 2. 保存种子文件: {root}/.uvdt/{fileMd5}/{fileMd5}.tor
+ * 3. 创建下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
  * 4. 下载目录不存在时创建目录，每个下载文件任务具有独立的目录
  */
 func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
@@ -299,12 +335,45 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 	fTorrent.Write(torrent)
 
-	// 3. 创建元数据目录，创建元数据文件
-	//    下载状态文件: root/.uvdt/{fileMd5}/{fileMd5}.meta
+	// 3. 当下载目录不存在时创建目录
+	//	  创建本地下载目录，每个下载文件任务具有独立的目录 {root}/downloads/{destdownloadpath}
+	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
+		"downloads",
+		destDownloadPath)
+	if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create download path %s", downloadPath))
+		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
+	}
+	ftMgr.fileMeta.fileDlPath = downloadPath
+
+	torrContent := make(map[string]interface{})
+	if err := json.Unmarshal(torrent, &torrContent); err != nil {
+		log.Err(fmt.Sprintf("Parse json torrent data fail, md5: %s", fileMd5))
+		return err
+	}
+
+	ftMgr.fileMeta.version = torrContent["version"].(string)
+	ftMgr.fileMeta.contenttype = torrContent["contenttype"].(string)
+	ftMgr.fileMeta.stat = FM_STOP
+	ftMgr.fileMeta.fileDlPath = downloadPath
+	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
+
+	ftMgr.fileMeta.blockCount = torrContent["part_count"].(int)
+	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)
+	ftMgr.fileMeta.blockSize = torrContent["block_size"].(int)
+
+	blocks := []BlockMeta{}
+	for _, v := range torrContent["file_parts"].([]string) {
+		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: 0})
+	}
+	ftMgr.fileMeta.blocks = blocks
+
+	// 4. 创建元数据目录，创建元数据文件
+	//    下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
 	jsonMetaFile := path.Join(metaPath, fileMd5, ".meta")
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
-		blob := `{"version": "v1.0", "fileslist": ["test.txt"]}`
+		blob := `{"version": "v1.0", "contenttype": singlefile, "fileslist": ["test.txt"]}`
 		fMeta, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
@@ -315,16 +384,6 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	} else if os.IsExist(err) {
 		log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
 		return err
-	}
-
-	// 4. 当下载目录不存在时创建目录
-	//	  创建本地下载目录，每个下载文件任务具有独立的目录 root/downloads/downloadfile
-	downloadPath := path.Join(setting.AppSetting.GetRootPath(),
-		"downloads",
-		destDownloadPath)
-	if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create download path %s", downloadPath))
-		os.MkdirAll(downloadPath, os.ModeDir|os.ModePerm)
 	}
 
 	// 5. 添加到本地共享文件管理的数据库
@@ -359,6 +418,13 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 
 	// 初始化元数据
 	ftMgr.maxDownloadThrNum = maxDlThrNum
+
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", md5)
+	jsonMetaFile := path.Join(metaPath, md5, ".meta")
+	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
+	} else if os.IsExist(err) {
+		log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+	}
 
 	// 1. 当下载目录不存在时创建目录
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
