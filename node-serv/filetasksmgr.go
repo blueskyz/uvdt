@@ -89,20 +89,20 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 
 	meta := make(map[string]interface{})
 	meta["version"] = fileMeta.version
-	meta["contenttype"] = fileMeta.contenttype
+	meta["content_type"] = fileMeta.contenttype
 	meta["stat"] = fileMeta.stat
-	meta["filedlpath"] = fileMeta.fileDlPath
-	meta["filemd5"] = fileMeta.fileMd5
+	meta["file_dl_path"] = fileMeta.fileDlPath
+	meta["file_md5"] = fileMeta.fileMd5
 
-	meta["filesize"] = fileMeta.fileSize
+	meta["file_size"] = fileMeta.fileSize
 	if fileMeta.fileSize <= 0 {
 		return errors.New(fmt.Sprintf("file size is %d", fileMeta.fileSize))
 	}
-	meta["blockcount"] = fileMeta.blockCount
+	meta["block_count"] = fileMeta.blockCount
 	if fileMeta.blockCount <= 0 {
 		return errors.New(fmt.Sprintf("block count is %d", fileMeta.blockCount))
 	}
-	meta["blocksize"] = fileMeta.blockSize
+	meta["block_size"] = fileMeta.blockSize
 	if fileMeta.blockSize <= 0 {
 		return errors.New(fmt.Sprintf("block size is %d", fileMeta.fileSize))
 	}
@@ -112,9 +112,9 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 		block := make(map[string]string)
 		block["md5"] = v.blockMd5
 		if v.blockStat == BS_COMPLETE {
-			block["blockstat"] = "1"
+			block["blockstat"] = string(BS_COMPLETE)
 		} else {
-			block["blockstat"] = "0"
+			block["blockstat"] = string(BS_UNDOWNLOAD)
 		}
 		blocksStat = append(blocksStat, block)
 	}
@@ -178,23 +178,23 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	}
 
 	fileMeta.version = meta["version"].(string)
-	fileMeta.contenttype = meta["contenttype"].(string)
+	fileMeta.contenttype = meta["content_type"].(string)
 	fileMeta.stat = meta["stat"].(uint)
-	fileMeta.fileDlPath = meta["filedlpath"].(string)
-	fileMeta.fileMd5 = meta["filemd5"].(string)
+	fileMeta.fileDlPath = meta["file_dl_path"].(string)
+	fileMeta.fileMd5 = meta["file_md5"].(string)
 
-	fileMeta.blockCount = meta["blockcount"].(int)
-	fileMeta.fileSize = meta["filesize"].(int)
-	fileMeta.blockSize = meta["blocksize"].(int)
+	fileMeta.fileSize = meta["file_size"].(int)
+	fileMeta.blockCount = meta["block_count"].(int)
+	fileMeta.blockSize = meta["block_size"].(int)
 
 	blocks := []BlockMeta{}
 	for _, v := range meta["blocks"].([]map[string]string) {
 		blockMeta := BlockMeta{}
 		blockMeta.blockMd5 = v["md5"]
 		if v["blockstat"] == "1" {
-			blockMeta.blockStat = 1
+			blockMeta.blockStat = BS_COMPLETE
 		} else {
-			blockMeta.blockStat = 0
+			blockMeta.blockStat = BS_UNDOWNLOAD
 		}
 		blocks = append(blocks, blockMeta)
 	}
@@ -353,18 +353,26 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	ftMgr.fileMeta.version = torrContent["version"].(string)
+	if ftMgr.fileMeta.version != "1.0" {
+		return errors.New(fmt.Sprintf("torrent version err, %s", ftMgr.fileMeta.version))
+	}
+
 	ftMgr.fileMeta.contenttype = torrContent["contenttype"].(string)
+	if ftMgr.fileMeta.contenttype != "singlefile" {
+		return errors.New(fmt.Sprintf("torrent content type err, %s", ftMgr.fileMeta.contenttype))
+	}
+
 	ftMgr.fileMeta.stat = FM_STOP
 	ftMgr.fileMeta.fileDlPath = downloadPath
 	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
 
-	ftMgr.fileMeta.blockCount = torrContent["part_count"].(int)
+	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
 	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)
 	ftMgr.fileMeta.blockSize = torrContent["block_size"].(int)
 
 	blocks := []BlockMeta{}
 	for _, v := range torrContent["file_parts"].([]string) {
-		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: 0})
+		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: BS_UNDOWNLOAD})
 	}
 	ftMgr.fileMeta.blocks = blocks
 
