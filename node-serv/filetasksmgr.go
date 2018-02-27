@@ -107,14 +107,14 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 		return errors.New(fmt.Sprintf("block size is %d", fileMeta.fileSize))
 	}
 
-	blocksStat := []map[string]string{}
+	blocksStat := []map[string]interface{}{}
 	for _, v := range fileMeta.blocks {
-		block := make(map[string]string)
+		block := make(map[string]interface{})
 		block["md5"] = v.blockMd5
 		if v.blockStat == BS_COMPLETE {
-			block["blockstat"] = string(BS_COMPLETE)
+			block["blockstat"] = BS_COMPLETE
 		} else {
-			block["blockstat"] = string(BS_UNDOWNLOAD)
+			block["blockstat"] = BS_UNDOWNLOAD
 		}
 		blocksStat = append(blocksStat, block)
 	}
@@ -188,10 +188,10 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	fileMeta.blockSize = meta["block_size"].(int)
 
 	blocks := []BlockMeta{}
-	for _, v := range meta["blocks"].([]map[string]string) {
+	for _, v := range meta["blocks"].([]map[string]interface{}) {
 		blockMeta := BlockMeta{}
-		blockMeta.blockMd5 = v["md5"]
-		if v["blockstat"] == "1" {
+		blockMeta.blockMd5 = v["md5"].(string)
+		if v["blockstat"] == 1 {
 			blockMeta.blockStat = BS_COMPLETE
 		} else {
 			blockMeta.blockStat = BS_UNDOWNLOAD
@@ -377,22 +377,29 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	ftMgr.fileMeta.blocks = blocks
 
 	// 4. 创建元数据目录，创建元数据文件
-	//    下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
-	jsonMetaFile := path.Join(metaPath, fileMd5, ".meta")
-	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
-		blob := `{"version": "v1.0", "contenttype": singlefile, "fileslist": ["test.txt"]}`
-		fMeta, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
-		if err != nil {
-			log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
-			return err
-		}
-		defer fMeta.Close()
-		fMeta.Write([]byte(blob))
-	} else if os.IsExist(err) {
-		log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+	if err := ftMgr.fileMeta.SaveMetaFile(fileMd5); err != nil {
+		log.Err(fmt.Sprintf("Save meta data fail, md5: %s", fileMd5))
 		return err
 	}
+
+	//    下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
+	/*
+		jsonMetaFile := path.Join(metaPath, fileMd5, ".meta")
+		if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
+			log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
+			blob := `{"version": "v1.0", "contenttype": singlefile, "fileslist": ["test.txt"]}`
+			fMeta, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+			if err != nil {
+				log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
+				return err
+			}
+			defer fMeta.Close()
+			fMeta.Write([]byte(blob))
+		} else if os.IsExist(err) {
+			log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+			return err
+		}
+	*/
 
 	// 5. 添加到本地共享文件管理的数据库
 
@@ -432,6 +439,11 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
 	} else if os.IsExist(err) {
 		log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+	}
+	// 加载元数据
+	if err := ftMgr.fileMeta.LoadMetaFile(md5); err != nil {
+		log.Err(fmt.Sprintf("Load meta data fail, md5: %s", md5))
+		return err
 	}
 
 	// 1. 当下载目录不存在时创建目录

@@ -25,7 +25,7 @@ func BtHttpServ(filesManager *FilesManager) error {
 
 	// HttpBtServMux.HandleFunc("/test", httpBtTestHandler)
 
-	// 上传
+	// 提供文件分片下载服务
 	HttpBtServMux.HandleFunc("/api/download", httpBtDownloadHandler)
 
 	httpBtServ := setting.AppSetting.GetBtServ()

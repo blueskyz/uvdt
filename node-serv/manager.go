@@ -82,14 +82,27 @@ func (filesMgr *FilesManager) LoadDB() error {
 		os.MkdirAll(uvdtRootPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 检查文件元数据，没有则创建
+	// 2. 检查创建分享文件目录 {root}/share
+	//    每个分享的文件在这个目录下创建独立的目录
+	sharePath := path.Join(setting.AppSetting.GetRootPath(), "share")
+	if _, err := os.Stat(sharePath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create share path %s", sharePath))
+		os.MkdirAll(sharePath, os.ModeDir|os.ModePerm)
+	}
+
+	// 3. 检查文件元数据，没有则创建
 	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
 	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
 		// blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
 		// blob := `{"version": "v1.0", "fileslist": []}`
+		/*
+			// 共享的文件
+				blob := `{"version": "v1.0",
+				"fileslist": [{"filename": "test.txt", "path":"share", "md5": "xxx"}]}`
+		*/
 		blob := `{"version": "v1.0",
-		"fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
+		"fileslist": [{"filename": "test.txt", "path":"downloads", "md5": "xxx"}]}`
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
@@ -99,7 +112,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 		f.Close()
 	}
 
-	// 3. 从 json 文件中加载共享的文件元数据
+	// 4. 从 json 文件中加载共享的文件元数据
 	f, err := os.Open(uvdtJsonDataFile)
 	if err != nil {
 		log.Err(fmt.Sprintf("Open uvdt json data fail, %s", uvdtJsonDataFile))
@@ -115,7 +128,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 	}
 	uvdtData = uvdtData[:count]
 
-	// 4. 解析元数据
+	// 5. 解析元数据
 	jsonMeta := make(map[string]interface{})
 	if err := json.Unmarshal(uvdtData, &jsonMeta); err != nil {
 		log.Err(fmt.Sprintf("Parse json uvdt data fail, %s", uvdtJsonDataFile))
@@ -123,7 +136,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 	}
 	filesMgr.version = jsonMeta["version"].(string)
 
-	// 5. 创建 下载/共享 的文件管理器
+	// 6. 创建 下载/共享 的文件管理器
 	filesList := jsonMeta["fileslist"].([]interface{})
 	for _, v := range filesList {
 		fileInfo := v.(map[string]interface{})

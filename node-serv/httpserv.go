@@ -31,8 +31,11 @@ func HttpServ(filesManager *FilesManager) error {
 	// api 接口
 	HttpServMux.HandleFunc("/api/stats", apiStatsHandler)
 
-	// 上传
+	// 上传分享的 tor 文件
 	HttpServMux.HandleFunc("/api/upload", httpHandler)
+
+	// 添加下载任务
+	HttpServMux.HandleFunc("/api/download", httpHandler)
 
 	httpServ := setting.AppSetting.GetHttpServ()
 	log.Info(fmt.Sprintf("%s:%d", httpServ.Ip, httpServ.Port))
