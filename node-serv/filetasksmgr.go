@@ -61,7 +61,7 @@ type FileMeta struct {
 	stat uint
 
 	fileMetaName string // 元文件位置
-	fileDlPath   string // 下载文件绝对路径
+	fileDlPath   string // 下载/共享文件绝对路径
 	fileMd5      string // 下载文件 md5
 	fileSize     int    // 文件大小
 	blockCount   int    // 块数量
@@ -298,7 +298,108 @@ type FileTasksMgr struct {
 /*
  * 创建分享文件任务
  */
-func (ftMgr *FileTasksMgr) CreateShareFile(filePath string) {
+func (ftMgr *FileTasksMgr) CreateShareFile(maxDlThrNum int,
+	fileMd5 string,
+	sharePath string,
+	torrent []byte) error {
+
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// 1. 当共享文件的元数据目录不存在时创建目录
+	//	  创建元数据目录，每个下载文件任务具有独立的目录
+	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", fileMd5)
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta path %s", metaPath))
+		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
+	}
+
+	// 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
+	torFile := path.Join(metaPath, fileMd5, ".tor")
+	fTorrent, err := os.OpenFile(torFile, os.O_RDWR|os.O_CREATE, 0644)
+	defer fTorrent.Close()
+	if err != nil {
+		log.Err(fmt.Sprintf("Save torrent file fail, %s", torFile))
+		return err
+	}
+	fTorrent.Write(torrent)
+
+	// 3. 当下载目录不存在时创建目录
+	//	  创建本地分享目录，每个分享的文件具有独立的目录 {root}/share/{sharePath}
+	abSharePath := path.Join(setting.AppSetting.GetRootPath(),
+		"share",
+		sharePath)
+	if _, err := os.Stat(abSharePath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create share path %s", abSharePath))
+		os.MkdirAll(abSharePath, os.ModeDir|os.ModePerm)
+	}
+	ftMgr.fileMeta.fileDlPath = abSharePath
+
+	torrContent := make(map[string]interface{})
+	if err := json.Unmarshal(torrent, &torrContent); err != nil {
+		log.Err(fmt.Sprintf("Parse json torrent data fail, md5: %s", fileMd5))
+		return err
+	}
+
+	ftMgr.fileMeta.version = torrContent["version"].(string)
+	if ftMgr.fileMeta.version != "1.0" {
+		return errors.New(fmt.Sprintf("torrent version err, %s", ftMgr.fileMeta.version))
+	}
+
+	ftMgr.fileMeta.contenttype = torrContent["contenttype"].(string)
+	if ftMgr.fileMeta.contenttype != "singlefile" {
+		return errors.New(fmt.Sprintf("torrent content type err, %s", ftMgr.fileMeta.contenttype))
+	}
+
+	ftMgr.fileMeta.stat = FM_STOP
+	ftMgr.fileMeta.fileDlPath = sharePath
+	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
+
+	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
+	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)
+	ftMgr.fileMeta.blockSize = torrContent["block_size"].(int)
+
+	blocks := []BlockMeta{}
+	for _, v := range torrContent["file_parts"].([]string) {
+		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: BS_UNDOWNLOAD})
+	}
+	ftMgr.fileMeta.blocks = blocks
+
+	// 4. 创建元数据目录，创建元数据文件
+	if err := ftMgr.fileMeta.SaveMetaFile(fileMd5); err != nil {
+		log.Err(fmt.Sprintf("Save meta data fail, md5: %s", fileMd5))
+		return err
+	}
+
+	//    下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
+	/*
+		jsonMetaFile := path.Join(metaPath, fileMd5, ".meta")
+		if _, err := os.Stat(jsonMetaFile); os.IsNotExist(err) {
+			log.Info(fmt.Sprintf("Create meta data, %s", jsonMetaFile))
+			blob := `{"version": "v1.0", "contenttype": singlefile, "fileslist": ["test.txt"]}`
+			fMeta, err := os.OpenFile(jsonMetaFile, os.O_RDWR|os.O_CREATE, 0644)
+			if err != nil {
+				log.Err(fmt.Sprintf("Create meta data fail, %s", jsonMetaFile))
+				return err
+			}
+			defer fMeta.Close()
+			fMeta.Write([]byte(blob))
+		} else if os.IsExist(err) {
+			log.Err(fmt.Sprintf("The meta data is exist, %s", jsonMetaFile))
+			return err
+		}
+	*/
+
+	// 5. 添加到本地共享文件管理的数据库
+
+	// 6. 调用 Start 开始下载任务
+	/*
+		fileTasksMgr := FileTasksMgr{}
+		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()), filename)
+		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
+	*/
+
+	return nil
 }
 
 /*
