@@ -16,6 +16,17 @@ import (
 	"github.com/blueskyz/uvdt/node-serv/setting"
 )
 
+/*
+ * 上传，下载文件管理
+ */
+type FilesManager struct {
+	version    string
+	maxFileNum uint
+	lock       sync.RWMutex
+
+	fileTasksMgr []FileTasksMgr
+}
+
 func CreateFilesMgr() (*FilesManager, error) {
 
 	filesMgr := &FilesManager{
@@ -33,15 +44,7 @@ func CreateFilesMgr() (*FilesManager, error) {
 	return filesMgr, nil
 }
 
-/*
- * 上传，下载文件管理
- */
-type FilesManager struct {
-	version    string
-	maxFileNum uint
-	lock       sync.RWMutex
-
-	fileTasksMgr []FileTasksMgr
+func CreateShareTask(infohash string) (*FilesManager, error) {
 }
 
 func (filesMgr *FilesManager) GetVersion() string {

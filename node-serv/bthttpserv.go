@@ -23,6 +23,9 @@ func BtHttpServ(filesManager *FilesManager) error {
 	HttpBtServMux := http.NewServeMux()
 	HttpBtServMux.HandleFunc("/hello", httpBtHelloHandler)
 
+	// 通过创建分享任务
+	HttpBtServMux.HandleFunc("/api/share/resource", httpShareResourceHandler)
+
 	// HttpBtServMux.HandleFunc("/test", httpBtTestHandler)
 
 	// 提供文件分片下载服务
@@ -56,4 +59,28 @@ func httpBtTestHandler(w http.ResponseWriter, r *http.Request) {
  */
 func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "http serv api download")
+}
+
+/*
+ * 共享资源
+ */
+func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "http serv api create share resource")
+
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	log.Info(r.RequestURI)
+	// 解析 bt 请求参数
+	values := r.URL.Query()
+	if len(values) == 0 {
+		CreateErrResp(w, &log, "Arguments is empty")
+		return
+	}
+
+	// 1. 创建本地共享文件
+	btFilesMgr.CreateShareTask()
+
+	// 2. 上传共享文件 bt 元数据
 }
