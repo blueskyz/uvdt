@@ -58,10 +58,13 @@ type FileMeta struct {
 	version     string
 	contenttype string // singlefile, multifile
 
+	maxDlThrNum int // max thread number
+
 	stat uint
 
 	fileMetaName string // 元文件位置
 	fileDlPath   string // 下载/共享文件绝对路径
+	filename     string // 下载/共享文件绝对路径
 	fileMd5      string // 下载文件 md5
 	fileSize     int    // 文件大小
 	blockCount   int    // 块数量
@@ -90,8 +93,10 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 	meta := make(map[string]interface{})
 	meta["version"] = fileMeta.version
 	meta["content_type"] = fileMeta.contenttype
+	meta["max_dl_thr_num"] = fileMeta.maxDlThrNum
 	meta["stat"] = fileMeta.stat
 	meta["file_dl_path"] = fileMeta.fileDlPath
+	meta["file_name"] = fileMeta.filename
 	meta["file_md5"] = fileMeta.fileMd5
 
 	meta["file_size"] = fileMeta.fileSize
@@ -179,8 +184,11 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 
 	fileMeta.version = meta["version"].(string)
 	fileMeta.contenttype = meta["content_type"].(string)
+	fileMeta.maxDlThrNum = meta["max_dl_thr_num"].(int)
+
 	fileMeta.stat = meta["stat"].(uint)
 	fileMeta.fileDlPath = meta["file_dl_path"].(string)
+	fileMeta.filename = meta["file_name"].(string)
 	fileMeta.fileMd5 = meta["file_md5"].(string)
 
 	fileMeta.fileSize = meta["file_size"].(int)
@@ -298,8 +306,7 @@ type FileTasksMgr struct {
 /*
  * 创建分享文件任务
  */
-func (ftMgr *FileTasksMgr) CreateShareFile(maxDlThrNum int,
-	fileMd5 string,
+func (ftMgr *FileTasksMgr) CreateShareFile(fileMd5 string,
 	sharePath string,
 	torrent []byte) error {
 
@@ -351,8 +358,11 @@ func (ftMgr *FileTasksMgr) CreateShareFile(maxDlThrNum int,
 		return errors.New(fmt.Sprintf("torrent content type err, %s", ftMgr.fileMeta.contenttype))
 	}
 
+	ftMgr.fileMeta.maxDlThrNum = 0
+
 	ftMgr.fileMeta.stat = FM_STOP
 	ftMgr.fileMeta.fileDlPath = sharePath
+	ftMgr.fileMeta.filename = torrContent["file_name"].(string)
 	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
 
 	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
@@ -464,8 +474,11 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	ftMgr.fileMeta.stat = FM_STOP
+	ftMgr.fileMeta.maxDlThrNum = maxDlThrNum
+
 	ftMgr.fileMeta.fileDlPath = downloadPath
 	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
+	ftMgr.fileMeta.filename = torrContent["file_name"].(string)
 
 	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
 	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)

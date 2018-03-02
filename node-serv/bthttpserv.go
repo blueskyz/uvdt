@@ -9,6 +9,7 @@ import (
 
 	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
+	"github.com/blueskyz/uvdt/utils"
 )
 
 var btFilesMgr *FilesManager
@@ -75,12 +76,14 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	// 解析 bt 请求参数
 	values := r.URL.Query()
 	if len(values) == 0 {
-		CreateErrResp(w, &log, "Arguments is empty")
+		utils.CreateErrResp(w, &log, "Arguments is empty")
 		return
 	}
 
-	// 1. 创建本地共享文件
-	btFilesMgr.CreateShareTask()
+	// 1. 从 share 目录找到共享的文件
 
-	// 2. 上传共享文件 bt 元数据
+	// 2. 创建本地共享文件
+	btFilesMgr.CreateShareTask(fileMd5)
+
+	// 3. 上传共享文件 bt 元数据
 }

@@ -44,7 +44,8 @@ func CreateFilesMgr() (*FilesManager, error) {
 	return filesMgr, nil
 }
 
-func CreateShareTask(infohash string) (*FilesManager, error) {
+func (filesMgr *FilesManager) CreateShareTask(infohash string) error {
+	return nil
 }
 
 func (filesMgr *FilesManager) GetVersion() string {
