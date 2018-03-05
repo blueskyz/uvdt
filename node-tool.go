@@ -31,7 +31,7 @@ func ParseCmd() error {
 
 	// torrent 文件存放的路径
 	torrentPath := flag.String("torrentpath",
-		"torrents",
+		".torrents",
 		"add a shared torrent file Path")
 
 	// 添加共享文件资源，创建 infohash，并且提交到 tracker 服务器

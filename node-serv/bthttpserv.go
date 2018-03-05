@@ -5,7 +5,10 @@ package nodeserv
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path"
 
 	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
@@ -80,10 +83,30 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. 从 share 目录找到共享的文件
+	infoHashName := values.Get("info_hash_name")
+	sharePath := path.Join(setting.AppSetting.GetRootPath(), "share", ".torrents")
+	// 1. 读取 torrent file
+	torrent_file := path.Join(sharePath, infoHashName)
+	log.Info(torrent_file)
+	f, err := os.OpenFile(torrent_file, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		log.Err(fmt.Sprintf("%s: %s", f, err.Error()))
+		return
+	}
+	defer f.Close()
 
-	// 2. 创建本地共享文件
-	btFilesMgr.CreateShareTask(fileMd5)
+	torFile := make([]byte, 1024<<10)
+	count, err := f.Read(torFile)
+	if err != nil && err != io.EOF {
+		log.Err(fmt.Sprintf("Read tor data fail, %s", torrent_file))
+		return
+	}
+	torFile = torFile[:count]
 
-	// 3. 上传共享文件 bt 元数据
+	// 2. 从 share 目录找到共享的文件
+
+	// 3. 创建本地共享文件
+	btFilesMgr.CreateShareTask(string(torFile))
+
+	// 4. 上传共享文件 bt 元数据
 }

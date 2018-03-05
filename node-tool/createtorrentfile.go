@@ -76,7 +76,7 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 				log.Printf("%s", torrent)
 
 				// 保存 torrent 文件
-				torrent_file := path.Join(torrentPath, fileInfo.Name())
+				torrent_file := path.Join(torrentPath, fileInfo.Name(), fileMd5)
 				f, err := os.OpenFile(torrent_file, os.O_RDWR|os.O_CREATE, 0666)
 				if err != nil {
 					log.Printf("%s: %s", f, err.Error())
