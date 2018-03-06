@@ -73,7 +73,7 @@ func (set *Setting) SetTorrentPath(torrentPath string) {
 }
 
 func (set *Setting) GetAbTorrentPath() string {
-	return path.Join(set.rootPath, set.torrentPath)
+	return path.Join(set.rootPath, "share", set.torrentPath)
 }
 
 // 设置要共享的资源文件，为了创建 infohash 和 torrentfile

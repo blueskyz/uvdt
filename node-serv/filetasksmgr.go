@@ -64,7 +64,7 @@ type FileMeta struct {
 
 	fileMetaName string // 元文件位置
 	fileDlPath   string // 下载/共享文件绝对路径
-	filename     string // 下载/共享文件绝对路径
+	filename     string // 文件名
 	fileMd5      string // 下载文件 md5
 	fileSize     int    // 文件大小
 	blockCount   int    // 块数量
@@ -81,13 +81,13 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 
 	// 1. 获取元数据路径
 	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", md5)
-	if _, err := os.Stat(metaPath); err != nil {
-		log.Err(fmt.Sprintf("Get meta path %s fail", metaPath))
-		return err
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		log.Info(fmt.Sprintf("Create meta path %s", metaPath))
+		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
 	// 2. 获取元数据文件绝对路径
-	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
+	fileMeta.fileMetaName = path.Join(metaPath, md5) + ".meta"
 	log.Info(fmt.Sprintf("Get meta file %s", fileMeta.fileMetaName))
 
 	meta := make(map[string]interface{})
@@ -156,7 +156,7 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	}
 
 	// 2. 获取元数据文件绝对路径
-	fileMeta.fileMetaName = path.Join(metaPath, md5, ".meta")
+	fileMeta.fileMetaName = path.Join(metaPath, md5) + ".meta"
 	jsonMetaFile := fileMeta.fileMetaName
 
 	// 3. 从 json 文件中加载共享的文件元数据
@@ -306,14 +306,22 @@ type FileTasksMgr struct {
 /*
  * 创建分享文件任务
  */
-func (ftMgr *FileTasksMgr) CreateShareFile(fileMd5 string,
-	sharePath string,
-	torrent []byte) error {
+func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 
 	log := logger.NewAgent()
 	defer log.EndLog()
 
-	// 1. 当共享文件的元数据目录不存在时创建目录
+	// 1. 读取种子字符串
+	torrContent := make(map[string]interface{})
+	if err := json.Unmarshal(torrent, &torrContent); err != nil {
+		log.Err("Parse json torrent data fail, md5.")
+		return err
+	}
+
+	fileMd5 := torrContent["file_md5"].(string)
+	sharePath := torrContent["file_path"].(string)
+
+	// 2. 当共享文件的元数据目录不存在时创建目录
 	//	  创建元数据目录，每个下载文件任务具有独立的目录
 	metaPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt", fileMd5)
 	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
@@ -321,8 +329,8 @@ func (ftMgr *FileTasksMgr) CreateShareFile(fileMd5 string,
 		os.MkdirAll(metaPath, os.ModeDir|os.ModePerm)
 	}
 
-	// 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
-	torFile := path.Join(metaPath, fileMd5, ".tor")
+	// 3. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
+	torFile := path.Join(metaPath, fileMd5) + ".tor"
 	fTorrent, err := os.OpenFile(torFile, os.O_RDWR|os.O_CREATE, 0644)
 	defer fTorrent.Close()
 	if err != nil {
@@ -331,22 +339,14 @@ func (ftMgr *FileTasksMgr) CreateShareFile(fileMd5 string,
 	}
 	fTorrent.Write(torrent)
 
-	// 3. 当下载目录不存在时创建目录
+	// 4. 当下载目录不存在时创建目录
 	//	  创建本地分享目录，每个分享的文件具有独立的目录 {root}/share/{sharePath}
-	abSharePath := path.Join(setting.AppSetting.GetRootPath(),
-		"share",
-		sharePath)
+	abSharePath := path.Join(setting.AppSetting.GetRootPath(), sharePath)
 	if _, err := os.Stat(abSharePath); os.IsNotExist(err) {
-		log.Info(fmt.Sprintf("Create share path %s", abSharePath))
-		os.MkdirAll(abSharePath, os.ModeDir|os.ModePerm)
-	}
-	ftMgr.fileMeta.fileDlPath = abSharePath
-
-	torrContent := make(map[string]interface{})
-	if err := json.Unmarshal(torrent, &torrContent); err != nil {
-		log.Err(fmt.Sprintf("Parse json torrent data fail, md5: %s", fileMd5))
+		log.Err(fmt.Sprintf("Share path not exist. %s", abSharePath))
 		return err
 	}
+	ftMgr.fileMeta.fileDlPath = abSharePath
 
 	ftMgr.fileMeta.version = torrContent["version"].(string)
 	if ftMgr.fileMeta.version != "1.0" {
@@ -361,17 +361,17 @@ func (ftMgr *FileTasksMgr) CreateShareFile(fileMd5 string,
 	ftMgr.fileMeta.maxDlThrNum = 0
 
 	ftMgr.fileMeta.stat = FM_STOP
-	ftMgr.fileMeta.fileDlPath = sharePath
+	ftMgr.fileMeta.fileDlPath = abSharePath
 	ftMgr.fileMeta.filename = torrContent["file_name"].(string)
 	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
 
-	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
-	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)
-	ftMgr.fileMeta.blockSize = torrContent["block_size"].(int)
+	ftMgr.fileMeta.blockCount = int(torrContent["part_count"].(float64))
+	ftMgr.fileMeta.fileSize = int(torrContent["file_size"].(float64))
+	ftMgr.fileMeta.blockSize = int(torrContent["block_size"].(float64))
 
 	blocks := []BlockMeta{}
-	for _, v := range torrContent["file_parts"].([]string) {
-		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: BS_UNDOWNLOAD})
+	for _, v := range torrContent["file_parts"].([]interface{}) {
+		blocks = append(blocks, BlockMeta{blockMd5: v.(string), blockStat: BS_UNDOWNLOAD})
 	}
 	ftMgr.fileMeta.blocks = blocks
 
@@ -437,7 +437,7 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	}
 
 	// 2. 保存种子文件: root/.uvdt/{fileMd5}/{fileMd5}.tor
-	torFile := path.Join(metaPath, fileMd5, ".tor")
+	torFile := path.Join(metaPath, fileMd5) + ".tor"
 	fTorrent, err := os.OpenFile(torFile, os.O_RDWR|os.O_CREATE, 0644)
 	defer fTorrent.Close()
 	if err != nil {
@@ -480,13 +480,13 @@ func (ftMgr *FileTasksMgr) CreateDownloadFile(maxDlThrNum int,
 	ftMgr.fileMeta.fileMd5 = torrContent["file_md5"].(string)
 	ftMgr.fileMeta.filename = torrContent["file_name"].(string)
 
-	ftMgr.fileMeta.blockCount = torrContent["block_count"].(int)
-	ftMgr.fileMeta.fileSize = torrContent["file_size"].(int)
-	ftMgr.fileMeta.blockSize = torrContent["block_size"].(int)
+	ftMgr.fileMeta.blockCount = int(torrContent["part_count"].(float64))
+	ftMgr.fileMeta.fileSize = int(torrContent["file_size"].(float64))
+	ftMgr.fileMeta.blockSize = int(torrContent["block_size"].(float64))
 
 	blocks := []BlockMeta{}
-	for _, v := range torrContent["file_parts"].([]string) {
-		blocks = append(blocks, BlockMeta{blockMd5: v, blockStat: BS_UNDOWNLOAD})
+	for _, v := range torrContent["file_parts"].([]interface{}) {
+		blocks = append(blocks, BlockMeta{blockMd5: v.(string), blockStat: BS_UNDOWNLOAD})
 	}
 	ftMgr.fileMeta.blocks = blocks
 

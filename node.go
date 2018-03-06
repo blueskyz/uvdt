@@ -30,7 +30,7 @@ func ParseCmd() error {
 
 	// bt 客户端之间访问接口
 	btServ := flag.String("btserv",
-		"0.0.0.0:8088",
+		"0.0.0.0:8089",
 		"bt server's ip and port")
 
 	// tracker 服务器的地址

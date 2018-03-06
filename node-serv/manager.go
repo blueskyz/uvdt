@@ -44,7 +44,10 @@ func CreateFilesMgr() (*FilesManager, error) {
 	return filesMgr, nil
 }
 
-func (filesMgr *FilesManager) CreateShareTask(infohash string) error {
+func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
+	fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
+	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
+	fileTasksMgr.CreateShareFile(torrent)
 	return nil
 }
 
@@ -145,10 +148,10 @@ func (filesMgr *FilesManager) LoadDB() error {
 	for _, v := range filesList {
 		fileInfo := v.(map[string]interface{})
 		fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
+		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()),
 			fileInfo["filename"].(string),
 			fileInfo["md5"].(string))
-		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 	}
 
 	return nil

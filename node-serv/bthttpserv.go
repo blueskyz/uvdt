@@ -48,7 +48,7 @@ func BtHttpServ(filesManager *FilesManager) error {
 }
 
 func httpBtHelloHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "http serv hello")
+	fmt.Fprintf(w, "bt http serv hello")
 }
 
 func httpBtTestHandler(w http.ResponseWriter, r *http.Request) {
@@ -69,8 +69,6 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
  * 共享资源
  */
 func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "http serv api create share resource")
-
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -85,6 +83,7 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 
 	infoHashName := values.Get("info_hash_name")
 	sharePath := path.Join(setting.AppSetting.GetRootPath(), "share", ".torrents")
+
 	// 1. 读取 torrent file
 	torrent_file := path.Join(sharePath, infoHashName)
 	log.Info(torrent_file)
@@ -106,7 +105,10 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	// 2. 从 share 目录找到共享的文件
 
 	// 3. 创建本地共享文件
-	btFilesMgr.CreateShareTask(string(torFile))
+	btFilesMgr.CreateShareTask(torFile)
 
 	// 4. 上传共享文件 bt 元数据
+
+	result := map[string]interface{}{}
+	utils.CreateSuccResp(w, &log, "Create share file task succ.", result)
 }

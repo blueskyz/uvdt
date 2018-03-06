@@ -46,8 +46,8 @@ bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30080" -trackers
 
 ## 3.2 node 服务器
 
-bin/uvdt-node -httpserv 0.0.0.0:8088
+bin/uvdt-node -httpserv 0.0.0.0:8088 -rootpath ~/Downloads/movie
 
 ## 3.3 node tool 创建种子文件工具
 
-bin/uvdt-node-tool -rootpath ~/Downloads/movie -respath walkingdead
+bin/uvdt-node-tool -rootpath ~/Downloads/movie -respath share/walkingdead

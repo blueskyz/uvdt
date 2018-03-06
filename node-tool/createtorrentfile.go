@@ -32,8 +32,9 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 				return []string{}, errors.New(fmt.Sprintf("%s is not dir", torrentPath))
 			}
 		}
+		log.Printf("torrentPath: %s", torrentPath)
 		if os.IsNotExist(err) {
-			err := os.Mkdir(torrentPath, 0755)
+			err := os.MkdirAll(torrentPath, 0755)
 			if err != nil {
 				return []string{}, err
 			}
@@ -62,7 +63,9 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 
 				c := make(map[string]interface{})
 				c["version"] = "1.0"
+				c["contenttype"] = "singlefile"
 				c["block_size"] = blockSize
+				c["file_path"] = appSetting.GetResPath()
 				c["file_name"] = fileInfo.Name()
 				c["file_size"] = fileInfo.Size()
 				c["file_md5"] = fileMd5
@@ -76,7 +79,7 @@ func (creator *CreatorTorrent) ScanPath() ([]string, error) {
 				log.Printf("%s", torrent)
 
 				// 保存 torrent 文件
-				torrent_file := path.Join(torrentPath, fileInfo.Name(), fileMd5)
+				torrent_file := path.Join(torrentPath, fileInfo.Name()) + fileMd5
 				f, err := os.OpenFile(torrent_file, os.O_RDWR|os.O_CREATE, 0666)
 				if err != nil {
 					log.Printf("%s: %s", f, err.Error())
