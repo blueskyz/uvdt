@@ -45,9 +45,44 @@ func CreateFilesMgr() (*FilesManager, error) {
 }
 
 func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// lock
+	filesMgr.lock.RLock()
+	// unlock
+	defer filesMgr.lock.RUnlock()
+
 	fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
 	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 	fileTasksMgr.CreateShareFile(torrent)
+
+	// 1. 从 json 文件中加载共享的文件元数据
+	uvdtRootPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt")
+	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
+	f, err := os.Open(uvdtJsonDataFile)
+	if err != nil {
+		log.Err(fmt.Sprintf("Open uvdt json data fail, %s", uvdtJsonDataFile))
+		return err
+	}
+	defer f.Close()
+
+	uvdtData := make([]byte, 1024<<10)
+	count, err := f.Read(uvdtData)
+	if err != nil && err != io.EOF {
+		log.Err(fmt.Sprintf("Read uvdt data fail, %s", uvdtJsonDataFile))
+		return err
+	}
+	uvdtData = uvdtData[:count]
+
+	// 2. 解析元数据
+	jsonMeta := make(map[string]interface{})
+	if err := json.Unmarshal(uvdtData, &jsonMeta); err != nil {
+		log.Err(fmt.Sprintf("Parse json uvdt data fail, %s", uvdtJsonDataFile))
+		return err
+	}
+	filesMgr.version = jsonMeta["version"].(string)
 	return nil
 }
 

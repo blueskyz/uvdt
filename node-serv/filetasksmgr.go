@@ -563,7 +563,6 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	// 1. 当下载目录不存在时创建目录
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		log.Err(fmt.Sprintf("Create download filePath, %s", filePath))
-		return err
 	}
 
 	// 2. 创建下载 worker

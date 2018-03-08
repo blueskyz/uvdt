@@ -87,9 +87,20 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. 读取 torrent file
 	torrent_file := path.Join(sharePath, infoHashName)
 	log.Info(torrent_file)
+	if _, err := os.Stat(torrent_file); os.IsNotExist(err) {
+		log.Err(fmt.Sprintf("The share torrent file is not exist, %s", torrent_file))
+		utils.CreateErrResp(w, &log, "The share torrent file is not exist")
+		return
+	} else if os.IsExist(err) {
+		log.Err(fmt.Sprintf("The share torrent file error, %s", torrent_file))
+		utils.CreateErrResp(w, &log, "Open share torrent file error")
+		return
+	}
+
 	f, err := os.OpenFile(torrent_file, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", f, err.Error()))
+		utils.CreateErrResp(w, &log, "Open share torrent file error")
 		return
 	}
 	defer f.Close()
@@ -98,6 +109,7 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	count, err := f.Read(torFile)
 	if err != nil && err != io.EOF {
 		log.Err(fmt.Sprintf("Read tor data fail, %s", torrent_file))
+		utils.CreateErrResp(w, &log, "Read share torrent file error")
 		return
 	}
 	torFile = torFile[:count]
