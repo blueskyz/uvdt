@@ -83,6 +83,9 @@ func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
 		return err
 	}
 	filesMgr.version = jsonMeta["version"].(string)
+
+	// 3. 添加文件数据到字典
+	// jsonMeta["filesList"]
 	return nil
 }
 

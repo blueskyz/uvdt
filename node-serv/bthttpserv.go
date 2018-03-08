@@ -115,12 +115,10 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	torFile = torFile[:count]
 
 	// 2. 从 share 目录找到共享的文件
-
-	// 3. 创建本地共享文件
+	//	  创建本地共享文件
 	btFilesMgr.CreateShareTask(torFile)
 
-	// 4. 上传共享文件 bt 元数据
-
+	// 3. 上传共享文件 bt 元数据
 	result := map[string]interface{}{}
 	utils.CreateSuccResp(w, &log, "Create share file task succ.", result)
 }
