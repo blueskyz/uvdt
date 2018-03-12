@@ -23,7 +23,7 @@ func ParseCmd() error {
 		"0.0.0.0:80",
 		"bt server ip and port")
 	trackerServ := flag.String("trackerserv",
-		"0.0.0.0:30081",
+		"0.0.0.0:30080",
 		"tracker server ip and port")
 	logFile := flag.String("logfile",
 		"/var/log/uvdt-trace.log",

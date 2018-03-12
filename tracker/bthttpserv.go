@@ -19,9 +19,9 @@ func BtHttpServ() {
 
 	// 设置 bt http server 路由
 	btHttpServMux := http.NewServeMux()
-	btHttpServMux.HandleFunc("/hello", btHelloHandler)
+	btHttpServMux.HandleFunc("/", btHelloHandler)
 	btHttpServMux.HandleFunc("/node", btNodeHandler)
-	btHttpServMux.HandleFunc("/", btTorrentHandler)
+	btHttpServMux.HandleFunc("/torrent", btTorrentHandler)
 
 	btServ := setting.AppSetting.GetBtServ()
 	log.Info(fmt.Sprintf("init %s:%d", btServ.Ip, btServ.Port))
@@ -72,7 +72,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	port := values.Get("port")
 	port_int, err := strconv.Atoi(port)
 	if err != nil || port_int < 0 || port_int > 65535 {
-		CreateErrResp(w, &log, fmt.Sprintf("Port is err: %s", port))
+		CreateErrResp(w, &log, fmt.Sprintf("Port[%s] is err: %s", port, err.Error()))
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, compact: %s, peerId: %s, ip: %s, port: %s",
@@ -144,7 +144,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 	port := values.Get("port")
 	port_int, err := strconv.Atoi(port)
 	if err != nil || port_int < 0 || port_int > 65535 {
-		CreateErrResp(w, &log, fmt.Sprintf("Port is err: %s", port))
+		CreateErrResp(w, &log, fmt.Sprintf("Port is err: %s", err.Error()))
 		return
 	}
 	log.Info(fmt.Sprintf("infoHash: %s, peerId: %s, ip: %s, port: %s",

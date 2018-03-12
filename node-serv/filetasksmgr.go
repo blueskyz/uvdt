@@ -129,9 +129,7 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 		return err
 	}
 
-	f, err := os.OpenFile(fileMeta.fileMetaName,
-		os.O_WRONLY|os.O_CREATE,
-		644)
+	f, err := os.OpenFile(fileMeta.fileMetaName, os.O_RDWR|os.O_CREATE, 0644)
 	defer f.Close()
 	if err != nil {
 		return err
@@ -184,22 +182,23 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 
 	fileMeta.version = meta["version"].(string)
 	fileMeta.contenttype = meta["content_type"].(string)
-	fileMeta.maxDlThrNum = meta["max_dl_thr_num"].(int)
+	fileMeta.maxDlThrNum = int(meta["max_dl_thr_num"].(float64))
 
-	fileMeta.stat = meta["stat"].(uint)
+	fileMeta.stat = uint(meta["stat"].(float64))
 	fileMeta.fileDlPath = meta["file_dl_path"].(string)
 	fileMeta.filename = meta["file_name"].(string)
 	fileMeta.fileMd5 = meta["file_md5"].(string)
 
-	fileMeta.fileSize = meta["file_size"].(int)
-	fileMeta.blockCount = meta["block_count"].(int)
-	fileMeta.blockSize = meta["block_size"].(int)
+	fileMeta.fileSize = int(meta["file_size"].(float64))
+	fileMeta.blockCount = int(meta["block_count"].(float64))
+	fileMeta.blockSize = int(meta["block_size"].(float64))
 
 	blocks := []BlockMeta{}
-	for _, v := range meta["blocks"].([]map[string]interface{}) {
+	for _, v := range meta["blocks"].([]interface{}) {
 		blockMeta := BlockMeta{}
-		blockMeta.blockMd5 = v["md5"].(string)
-		if v["blockstat"] == 1 {
+		block := v.(map[string]interface{})
+		blockMeta.blockMd5 = block["md5"].(string)
+		if int(block["blockstat"].(float64)) == 1 {
 			blockMeta.blockStat = BS_COMPLETE
 		} else {
 			blockMeta.blockStat = BS_UNDOWNLOAD
@@ -306,7 +305,9 @@ type FileTasksMgr struct {
 /*
  * 创建分享文件任务
  */
-func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
+func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) (string,
+	string,
+	error) {
 
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -315,7 +316,7 @@ func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 	torrContent := make(map[string]interface{})
 	if err := json.Unmarshal(torrent, &torrContent); err != nil {
 		log.Err("Parse json torrent data fail, md5.")
-		return err
+		return "", "", err
 	}
 
 	fileMd5 := torrContent["file_md5"].(string)
@@ -335,7 +336,7 @@ func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 	defer fTorrent.Close()
 	if err != nil {
 		log.Err(fmt.Sprintf("Save torrent file fail, %s", torFile))
-		return err
+		return "", "", err
 	}
 	fTorrent.Write(torrent)
 
@@ -344,18 +345,18 @@ func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 	abSharePath := path.Join(setting.AppSetting.GetRootPath(), sharePath)
 	if _, err := os.Stat(abSharePath); os.IsNotExist(err) {
 		log.Err(fmt.Sprintf("Share path not exist. %s", abSharePath))
-		return err
+		return "", "", err
 	}
 	ftMgr.fileMeta.fileDlPath = abSharePath
 
 	ftMgr.fileMeta.version = torrContent["version"].(string)
 	if ftMgr.fileMeta.version != "1.0" {
-		return errors.New(fmt.Sprintf("torrent version err, %s", ftMgr.fileMeta.version))
+		return "", "", errors.New(fmt.Sprintf("torrent version err, %s", ftMgr.fileMeta.version))
 	}
 
 	ftMgr.fileMeta.contenttype = torrContent["contenttype"].(string)
 	if ftMgr.fileMeta.contenttype != "singlefile" {
-		return errors.New(fmt.Sprintf("torrent content type err, %s", ftMgr.fileMeta.contenttype))
+		return "", "", errors.New(fmt.Sprintf("torrent content type err, %s", ftMgr.fileMeta.contenttype))
 	}
 
 	ftMgr.fileMeta.maxDlThrNum = 0
@@ -378,7 +379,7 @@ func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 	// 4. 创建元数据目录，创建元数据文件
 	if err := ftMgr.fileMeta.SaveMetaFile(fileMd5); err != nil {
 		log.Err(fmt.Sprintf("Save meta data fail, md5: %s", fileMd5))
-		return err
+		return "", "", err
 	}
 
 	//    下载状态文件: {root}/.uvdt/{fileMd5}/{fileMd5}.meta
@@ -409,7 +410,7 @@ func (ftMgr *FileTasksMgr) CreateShareFile(torrent []byte) error {
 		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
 	*/
 
-	return nil
+	return ftMgr.fileMeta.filename, ftMgr.fileMeta.fileMd5, nil
 }
 
 /*

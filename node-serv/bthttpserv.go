@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
@@ -116,9 +117,36 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 2. 从 share 目录找到共享的文件
 	//	  创建本地共享文件
-	btFilesMgr.CreateShareTask(torFile)
+	_, infohash, err := btFilesMgr.CreateShareTask(torFile)
+	if err != nil {
+		log.Err(fmt.Sprintf("%s: %s", f, err.Error()))
+		utils.CreateErrResp(w, &log, "Create share task fail.")
+		return
+	}
 
 	// 3. 上传共享文件 bt 元数据
+	peer_id := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
+	serv := setting.AppSetting.GetTrackerServ()
+	url := fmt.Sprintf("http://%s:%d/torrent?infohash=%s&peer_id=%s&port=%d",
+		serv.Ip,
+		serv.Port,
+		infohash,
+		peer_id,
+		setting.AppSetting.GetBtServ().Port)
+	log.Info(url)
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(torFile)))
+	if err != nil {
+		utils.CreateErrResp(w, &log, fmt.Sprint("Create share task fail. %s", err.Error()))
+		return
+	}
+	req.Host = serv.Ip
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		utils.CreateErrResp(w, &log, fmt.Sprint("Create share task fail. %s", err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+
 	result := map[string]interface{}{}
 	utils.CreateSuccResp(w, &log, "Create share file task succ.", result)
 }

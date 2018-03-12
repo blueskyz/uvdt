@@ -6,6 +6,7 @@ package nodeserv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -44,7 +45,8 @@ func CreateFilesMgr() (*FilesManager, error) {
 	return filesMgr, nil
 }
 
-func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
+func (filesMgr *FilesManager) CreateShareTask(torrent []byte) (string,
+	string, error) {
 	// 创建日志记录器
 	log := logger.NewAgent()
 	defer log.EndLog()
@@ -56,14 +58,36 @@ func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
 
 	fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
 	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
-	fileTasksMgr.CreateShareFile(torrent)
+	filename, fileMd5, err := fileTasksMgr.CreateShareFile(torrent)
+	if err != nil {
+		log.Err(fmt.Sprintf("Create share file fail, %s", err.Error()))
+		return "", "", err
+	}
+
+	err = addToUvdtData(filename, fileMd5, "share")
+	if err != nil {
+		log.Err(fmt.Sprintf("Add to uvdt data fail, %s", err.Error()))
+		return "", "", err
+	}
+	log.Info(fmt.Sprintf("Task %s[%s] started, state: %s",
+		filename,
+		fileMd5,
+		"share"))
+
+	return filename, fileMd5, nil
+}
+
+func addToUvdtData(filename string, md5 string, filepath string) error {
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
 
 	// 1. 从 json 文件中加载共享的文件元数据
 	uvdtRootPath := path.Join(setting.AppSetting.GetRootPath(), ".uvdt")
 	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
 	f, err := os.Open(uvdtJsonDataFile)
 	if err != nil {
-		log.Err(fmt.Sprintf("Open uvdt json data fail, %s", uvdtJsonDataFile))
+		log.Err(fmt.Sprintf("Open uvdt json data fail, %s", err.Error()))
 		return err
 	}
 	defer f.Close()
@@ -71,7 +95,7 @@ func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
 	uvdtData := make([]byte, 1024<<10)
 	count, err := f.Read(uvdtData)
 	if err != nil && err != io.EOF {
-		log.Err(fmt.Sprintf("Read uvdt data fail, %s", uvdtJsonDataFile))
+		log.Err(fmt.Sprintf("Read uvdt data fail, %s", err.Error()))
 		return err
 	}
 	uvdtData = uvdtData[:count]
@@ -79,13 +103,47 @@ func (filesMgr *FilesManager) CreateShareTask(torrent []byte) error {
 	// 2. 解析元数据
 	jsonMeta := make(map[string]interface{})
 	if err := json.Unmarshal(uvdtData, &jsonMeta); err != nil {
-		log.Err(fmt.Sprintf("Parse json uvdt data fail, %s", uvdtJsonDataFile))
+		log.Err(fmt.Sprintf("Parse json uvdt data fail, %s", err.Error()))
 		return err
 	}
 	filesMgr.version = jsonMeta["version"].(string)
 
 	// 3. 添加文件数据到字典
-	// jsonMeta["filesList"]
+	/*
+		blob := `{"version": "v1.0",
+		"fileslist": [{"filename": "test.txt", "path":"downloads", "md5": "xxx"}]}`
+	*/
+	filesList := jsonMeta["fileslist"].([]interface{})
+	helpMd5Map := make(map[string]int)
+	for _, i := range filesList {
+		helpMd5Map[i.(map[string]interface{})["md5"].(string)] = 1
+	}
+
+	if _, ok := helpMd5Map[md5]; ok {
+		return errors.New(fmt.Sprintf("torrent file exist, %s", md5))
+	}
+
+	fileInfo := make(map[string]interface{})
+	fileInfo["filename"] = filename
+	fileInfo["path"] = filepath
+	fileInfo["md5"] = md5
+	filesList = append(filesList, fileInfo)
+	jsonMeta["fileslist"] = filesList
+
+	// 4. 保存共享文件信息
+	metaData, err := json.Marshal(jsonMeta)
+	if err != nil {
+		return err
+	}
+
+	jsonFile, err := os.OpenFile(uvdtJsonDataFile,
+		os.O_RDWR|os.O_CREATE,
+		0644)
+	defer jsonFile.Close()
+	if err != nil {
+		return err
+	}
+	jsonFile.Write(metaData)
 	return nil
 }
 
@@ -147,7 +205,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 				"fileslist": [{"filename": "test.txt", "path":"share", "md5": "xxx"}]}`
 		*/
 		blob := `{"version": "v1.0",
-		"fileslist": [{"filename": "test.txt", "path":"downloads", "md5": "xxx"}]}`
+		"fileslist": []}`
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
@@ -187,9 +245,18 @@ func (filesMgr *FilesManager) LoadDB() error {
 		fileInfo := v.(map[string]interface{})
 		fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
 		filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
-		fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()),
-			fileInfo["filename"].(string),
-			fileInfo["md5"].(string))
+		filename := fileInfo["filename"].(string)
+		md5 := fileInfo["md5"].(string)
+		filepath := fileInfo["path"].(string)
+		log.Info(fmt.Sprintf("Task %s[%s] started, state: %s",
+			filename,
+			md5,
+			filepath))
+		if filepath == "downloads" {
+			fileTasksMgr.Start(int(setting.AppSetting.GetTaskNumForFile()),
+				filename,
+				md5)
+		}
 	}
 
 	return nil
