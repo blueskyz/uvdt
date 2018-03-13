@@ -5,6 +5,7 @@ package tracker
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -172,10 +173,14 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 		btResp["torrent_content"] = torrentContent
 	} else if r.Method == "POST" {
 		// 上传 torrent file
-		r.ParseForm()
-		postValues := r.PostForm
-		log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
-		torrentContent := postValues.Get("torrent")
+		/*
+			r.ParseForm()
+			postValues := r.PostForm
+			log.Info(fmt.Sprintf("POST: infohash=%s", infoHash))
+			torrentContent := postValues.Get("torrent")
+		*/
+		body, err := ioutil.ReadAll(r.Body)
+		torrentContent := string(body)
 		if len(torrentContent) >= (1024 << 12) {
 			CreateErrResp(w, &log, fmt.Sprintf("too big, infohash=%s, torrentContent len=%d",
 				infoHash,
@@ -203,7 +208,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Info(fmt.Sprintf("version=%d", int(content["version"].(float64))))
+		log.Info(fmt.Sprintf("version=%s", content["version"].(string)))
 		err = torrent.AddTorrent(infoHash, torrentContent)
 		if err != nil {
 			log.Err(err.Error())

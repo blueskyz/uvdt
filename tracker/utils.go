@@ -103,6 +103,7 @@ func CreateErrResp(w http.ResponseWriter, log *logger.LogAgent, errMsg string) {
 		"msg":    errMsg,
 	}
 	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
 
 	resp, err := json.Marshal(errResp)
 	if err != nil {

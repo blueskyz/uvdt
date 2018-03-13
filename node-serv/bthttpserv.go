@@ -120,7 +120,11 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	_, infohash, err := btFilesMgr.CreateShareTask(torFile)
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", f, err.Error()))
-		utils.CreateErrResp(w, &log, "Create share task fail.")
+		utils.CreateErrResp(w,
+			&log,
+			fmt.Sprintf("Create share task fail. %s, %s",
+				infoHashName,
+				err.Error()))
 		return
 	}
 
@@ -136,13 +140,26 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(url)
 	req, err := http.NewRequest("POST", url, strings.NewReader(string(torFile)))
 	if err != nil {
-		utils.CreateErrResp(w, &log, fmt.Sprint("Create share task fail. %s", err.Error()))
+		utils.CreateErrResp(w,
+			&log,
+			fmt.Sprintf("Create share task, upload bt file fail. %s",
+				err.Error()))
 		return
 	}
 	req.Host = serv.Ip
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		utils.CreateErrResp(w, &log, fmt.Sprint("Create share task fail. %s", err.Error()))
+		utils.CreateErrResp(w,
+			&log,
+			fmt.Sprintf("Create share task, upload bt file fail. %s",
+				err.Error()))
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		utils.CreateErrResp(w,
+			&log,
+			fmt.Sprintf("Create share task, upload bt file fail. Http code is %d",
+				resp.StatusCode))
 		return
 	}
 	defer resp.Body.Close()
