@@ -14,6 +14,7 @@ type Torrent struct {
 	infoHash string
 	name     string
 	peer     string // peer_id:ip:port
+	peerId   string
 	status   int
 }
 
@@ -72,7 +73,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 		// 3. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
 		rows := DB.QueryRow(`Select infohash, torrent from infohash where 
-							   infohash = ? limit 1`,
+							 infohash = ? limit 1`,
 			infoHash)
 
 		var infoHash string
@@ -82,7 +83,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 			return "", err
 		}
 		// 4. 找到 info hash 信息，插入缓存
-		rds.Send("LPUSH", fmt.Sprintf("%s-tor", infoHash, torrent))
+		rds.Send("LPUSH", infoHash, torrent)
 		rds.Flush()
 		return torrent, nil
 	}
@@ -99,7 +100,8 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 	defer rds.Close()
 
 	// 1. 从缓存查找 info hash 的 peer 信息
-	peerList, err := redis.Values(rds.Do("LRANGE", infoHash, "0", "100"))
+	peerKey := fmt.Sprintf("p_ih:%s", infoHash)
+	peerList, err := redis.Values(rds.Do("hgetall", peerKey))
 	if err != nil {
 		return nil, err
 	}
@@ -113,15 +115,14 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 			peers = append(peers, peer)
 			if info.peer == peer {
 				find = true
-				break
 			}
 		}
 
 		if !find {
-			rds.Do("LPUSH", infoHash, info.peer)
+			rds.Do("hset", peerKey, info.peerId, info.peer)
 		}
 	} else {
-		rds.Do("LPUSH", infoHash, info.peer)
+		rds.Do("hset", peerKey, info.peerId, info.peer)
 
 		// 3. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
@@ -150,25 +151,20 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 			}
 			for _, peer := range peers {
 				if peer != info.peer {
-					rds.Send("LPUSH", infoHash, peer)
+					rds.Send("hset", peerKey, info.peerId, peer)
 				}
 			}
 			rds.Flush()
 		} else {
 			// 5. 没有找到 info hash 信息，保存 info hash 信息到数据库
 			peers_value, err := json.Marshal([]string{info.peer})
-			stmp, err := DB.Prepare(`insert into 
-									 infohash(infohash,
-											  name,
-											  peers,
-											  ctime,
-											  mtime)
-									 values(?,
-											?,
-											?,
-											unix_timestamp(),
-											unix_timestamp())`)
-			_, err = stmp.Exec(infoHash, info.name, peers_value)
+			stmp, err := DB.Prepare(`update infohash
+			 						 set name=?,
+									 peers=?,
+									 ctime=unix_timestamp(),
+									 mtime=unix_timestamp() 
+									 where infohash=?`)
+			_, err = stmp.Exec(info.name, peers_value, infoHash)
 			if err != nil {
 				return []string{}, err
 			}

@@ -82,7 +82,7 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	infoHashName := values.Get("info_hash_name")
+	infoHashName := values.Get("infohash_name")
 	sharePath := path.Join(setting.AppSetting.GetRootPath(), "share", ".torrents")
 
 	// 1. 读取 torrent file

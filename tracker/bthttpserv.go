@@ -54,7 +54,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	infoHash := values.Get("info_hash")
+	infoHash := values.Get("infohash")
 	if !CheckHexdigest(infoHash, 32) {
 		CreateErrResp(w, &log, "infoHash err")
 		return
@@ -85,6 +85,7 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 	info := Torrent{
 		infoHash: infoHash,
 		name:     "",
+		peerId:   peerId,
 		peer:     fmt.Sprintf("%s:%s:%s", peerId, ip, port),
 	}
 	peers, err := info.GetPeers(infoHash)
@@ -95,9 +96,9 @@ func btNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 创建 response
 	btResp := map[string]interface{}{
-		"info_hash": infoHash,
-		"peers":     peers,
-		"interval":  30,
+		"infohash": infoHash,
+		"peers":    peers,
+		"interval": 30,
 	}
 
 	CreateSuccResp(w, &log, "succ", btResp)
@@ -153,7 +154,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 创建 response
 	btResp := map[string]interface{}{
-		"info_hash": infoHash,
+		"infohash": infoHash,
 	}
 
 	if r.Method == "GET" {
