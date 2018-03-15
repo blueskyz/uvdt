@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
+	"strings"
 )
 
 type Torrent struct {
@@ -26,12 +27,13 @@ func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
 	defer rds.Close()
 
 	// 1. 从缓存查找 info hash 信息
-	exists, err := redis.Bool(rds.Do("EXISTS", infoHash))
+	torKey := fmt.Sprintf("tor:%s", infoHash)
+	exists, err := redis.Bool(rds.Do("EXISTS", torKey))
 	if err != nil && exists {
 		return err
 	}
 
-	_, err = rds.Do("SET", infoHash, torrent)
+	_, err = rds.Do("SET", torKey, torrent)
 	if err != nil {
 		return err
 	}
@@ -44,7 +46,7 @@ func (info *Torrent) AddTorrent(infoHash string, torrent string) error {
 	if err != nil {
 		return err
 	}
-	r.Close()
+	defer r.Close()
 
 	return nil
 }
@@ -59,7 +61,8 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 	defer rds.Close()
 
 	// 1. 从缓存查找 info hash 信息
-	torrent, err := redis.String(rds.Do("GET", infoHash))
+	torKey := fmt.Sprintf("tor:%s", infoHash)
+	torrent, err := redis.String(rds.Do("get", torKey))
 	if err != nil {
 		if err.Error() != "redigo: nil returned" {
 			return "", err
@@ -72,7 +75,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 	} else {
 		// 3. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
-		rows := DB.QueryRow(`Select infohash, torrent from infohash where 
+		rows := DB.QueryRow(`select infohash, torrent from infohash where 
 							 infohash = ? limit 1`,
 			infoHash)
 
@@ -83,8 +86,7 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 			return "", err
 		}
 		// 4. 找到 info hash 信息，插入缓存
-		rds.Send("LPUSH", infoHash, torrent)
-		rds.Flush()
+		rds.Do("set", torKey, torrent)
 		return torrent, nil
 	}
 
@@ -99,40 +101,53 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 	rds := RdsPool.Get()
 	defer rds.Close()
 
-	// 1. 从缓存查找 info hash 的 peer 信息
-	peerKey := fmt.Sprintf("p_ih:%s", infoHash)
-	peerList, err := redis.Values(rds.Do("hgetall", peerKey))
+	// 1. 根据 peerId 更新缓存的 peer 信息
+	peerCurKey := fmt.Sprintf("pik:%s", info.peerId)
+	peerInfo, err := redis.String(rds.Do("get", peerCurKey))
+	if err != nil {
+		if err.Error() != "redigo: nil returned" {
+			return nil, err
+		}
+	}
+	if peerInfo != info.peer {
+		rds.Do("set", peerCurKey, info.peer)
+	}
+
+	// 2. 从缓存查找 info hash 的 peer 信息
+	infoKey := fmt.Sprintf("ih:%s", infoHash)
+	peersMap, err := redis.StringMap(rds.Do("zrange", infoKey, 0, 100, "withscores"))
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 在缓存中找到 peer
-	var peers []string
-	if len(peerList) > 0 {
+	// 3. 在缓存中找到 peer
+	var peerIds []string
+	if len(peersMap) > 0 {
 		find := false
-		for _, v := range peerList {
-			peer := string(v.([]byte))
-			peers = append(peers, peer)
-			if info.peer == peer {
+		for peerIdKey := range peersMap {
+			if peerCurKey == peerIdKey {
 				find = true
+			} else {
+				peerIds = append(peerIds, peerIdKey)
 			}
 		}
 
 		if !find {
-			rds.Do("hset", peerKey, info.peerId, info.peer)
+			rds.Do("zadd", infoKey, 1, peerCurKey)
 		}
 	} else {
-		rds.Do("hset", peerKey, info.peerId, info.peer)
+		rds.Do("zadd", infoKey, 1, peerCurKey)
 
-		// 3. 没有在缓存中找到，从数据库查找
+		// 4. 没有在缓存中找到，从数据库查找
 		// 从数据库获取 info 信息
-		rows, err := DB.Query(`Select peers from infohash where 
+		rows, err := DB.Query(`select peers from infohash where
 							   infohash = ? limit 1`,
 			infoHash)
-		rows.Close()
 		if err != nil {
 			return []string{}, err
 		}
+		defer rows.Close()
+
 		count := 0
 		var jsonPeers string
 		for rows.Next() {
@@ -143,15 +158,20 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 			count += 1
 		}
 
-		// 4. 找到 info hash 信息，插入缓存
+		// 4. 找到数据库中的 info hash 信息，插入缓存
 		if count > 0 {
+			var peers []string
 			err = json.Unmarshal([]byte(jsonPeers), &peers)
 			if err != nil {
 				return []string{}, err
 			}
 			for _, peer := range peers {
-				if peer != info.peer {
-					rds.Send("hset", peerKey, info.peerId, peer)
+				peerId := strings.Split(peer, ":")[0]
+				if peerId != info.peerId {
+					peerIdKey := fmt.Sprintf("pik:%s", peerId)
+					rds.Send("set", peerIdKey, peer)
+					rds.Send("zadd", infoKey, 1, peerIdKey)
+					peerIds = append(peerIds, peerIdKey)
 				}
 			}
 			rds.Flush()
@@ -169,6 +189,16 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 				return []string{}, err
 			}
 		}
+	}
+
+	var args []interface{}
+	for _, k := range peerIds {
+		args = append(args, k)
+	}
+
+	peers, err := redis.Strings(rds.Do("mget", args...))
+	if err != nil {
+		return []string{}, err
 	}
 
 	return peers, nil
