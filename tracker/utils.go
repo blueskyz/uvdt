@@ -30,9 +30,13 @@ type peer struct {
 	checktime int // 上一次有效检查时间
 }
 
-func InitDB(ipaddr string, user string, passwd string) error {
-	dbconn, err := sql.Open("mysql",
-		fmt.Sprintf("%s:%s@tcp(%s)/uvdt?charset=utf8mb4", user, passwd, ipaddr))
+func InitDB(ipaddr string, user string, passwd string, dbname string) error {
+	connStr := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8mb4",
+		user,
+		passwd,
+		ipaddr,
+		dbname)
+	dbconn, err := sql.Open("mysql", connStr)
 	if err != nil {
 		return err
 	} else {

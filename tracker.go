@@ -6,6 +6,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -29,6 +30,31 @@ func ParseCmd() error {
 		"/var/log/uvdt-trace.log",
 		"log file")
 
+	// 数据库配置
+	dbHost := flag.String("db-host",
+		"127.0.0.1:3306",
+		"database host -- ip:port")
+	dbUser := flag.String("user",
+		"root",
+		"database user")
+	dbPasswd := flag.String("db-passwd",
+		"123456",
+		"database port")
+	dbname := flag.String("dbname",
+		"uvdt",
+		"database name")
+
+	// redis 配置
+	redisHost := flag.String("redis-host",
+		"127.0.0.1:6379",
+		"redis host -- ip:port")
+	redisPasswd := flag.String("redis-passwd",
+		"",
+		"redis auth")
+	redisDB := flag.String("redis-db",
+		"3",
+		"redis database number")
+
 	flag.Parse()
 
 	// 打印服务参数
@@ -36,6 +62,12 @@ func ParseCmd() error {
 	log.Printf("bt server ip port: %s", *btServ)
 	log.Printf("tracker server ip port: %s", *trackerServ)
 	log.Printf("log file: %s", *logFile)
+
+	log.Printf("database: host:%s, user: %s, passwd: ***, dbname: %s",
+		*dbHost,
+		*dbUser,
+		*dbname)
+	log.Printf("redis: host:%s, db: %s", *redisHost, *redisDB)
 
 	// 创建配置对象
 	AppSetting := &setting.AppSetting
@@ -47,6 +79,10 @@ func ParseCmd() error {
 	if err == nil {
 		err = AppSetting.SetTraceServ(*trackerServ)
 	}
+
+	// 保存数据库、redis 配置
+	AppSetting.SetDB(*dbHost, *dbUser, *dbPasswd, *dbname)
+	AppSetting.SetRedis(*redisHost, *redisPasswd, *redisDB)
 
 	return err
 }
@@ -67,14 +103,35 @@ func init() {
 	log := logger.NewAgent()
 	defer log.EndLog()
 
+	// 获取配置参数
+	AppSetting := &setting.AppSetting
+	dbHost, dbUser, dbPasswd, dbname := AppSetting.GetDB()
+	redisHost, redisPasswd, redisDB := AppSetting.GetRedis()
+	btServ := AppSetting.GetBtServ()
+	trackerServ := AppSetting.GetTrackerServ()
+
+	// 打印服务参数
+	log.Info(fmt.Sprintf("bt server ip port: %s:%s", btServ.Ip, btServ.Port))
+	log.Info(fmt.Sprintf("tracker server ip port: %s",
+		trackerServ.Ip,
+		trackerServ.Port))
+
+	// log.Info(fmt.Sprintf("db: host:%s, user: %s, passwd: %s, dbname: %s",
+	log.Info(fmt.Sprintf("db: host:%s, user: %s, passwd: ***, dbname: %s",
+		dbHost,
+		dbUser,
+		// dbPasswd,
+		dbname))
+	log.Info(fmt.Sprintf("redis: host:%s, db: %s", redisHost, redisDB))
+
 	// 设置数据库
-	err = tracker.InitDB("127.0.0.1:3306", "root", "my-secret-pw")
+	err = tracker.InitDB(dbHost, dbUser, dbPasswd, dbname)
 	if err != nil {
-		log.Err(err.Error())
+		log.Err(fmt.Sprintf("db:%s", err.Error()))
 	}
 
 	// 设置数缓存
-	tracker.InitRedis("127.0.0.1:6379", "1", "3")
+	tracker.InitRedis(redisHost, redisPasswd, redisDB)
 }
 
 func main() {

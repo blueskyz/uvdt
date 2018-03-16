@@ -5,9 +5,11 @@
 package tracker
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
+	"log"
 	"strings"
 )
 
@@ -82,9 +84,13 @@ func (info *Torrent) GetTorrent(infoHash string) (string, error) {
 		var infoHash string
 		var torrent string
 		err = rows.Scan(&infoHash, &torrent)
-		if err != nil {
+		switch {
+		case err == sql.ErrNoRows:
+			return "", nil
+		case err != nil:
 			return "", err
 		}
+
 		// 4. 找到 info hash 信息，插入缓存
 		rds.Do("set", torKey, torrent)
 		return torrent, nil
@@ -194,6 +200,10 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 	var args []interface{}
 	for _, k := range peerIds {
 		args = append(args, k)
+	}
+
+	if len(args) <= 0 {
+		return []string{}, nil
 	}
 
 	peers, err := redis.Strings(rds.Do("mget", args...))

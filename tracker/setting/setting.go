@@ -22,6 +22,15 @@ type Setting struct {
 	btServ       Serv
 	trackerServ  Serv
 	clusterServs []Serv
+
+	dbHost   string
+	dbUser   string
+	dbPasswd string
+	dbname   string
+
+	redisHost   string
+	redisPasswd string
+	redisDB     string
 }
 
 var AppSetting Setting
@@ -82,6 +91,40 @@ func (set *Setting) SetTraceServ(value string) error {
 
 func (set *Setting) GetTrackerServ() Serv {
 	return set.trackerServ
+}
+
+// 设置数据库
+func (set *Setting) SetDB(dbHost string,
+	dbUser string,
+	dbPasswd string,
+	dbname string) error {
+
+	set.dbHost = dbHost
+	set.dbUser = dbUser
+	set.dbPasswd = dbPasswd
+	set.dbname = dbname
+
+	return nil
+}
+
+func (set *Setting) GetDB() (string, string, string, string) {
+	return set.dbHost, set.dbUser, set.dbPasswd, set.dbname
+}
+
+// 设置 redis
+func (set *Setting) SetRedis(redisHost string,
+	redisPasswd string,
+	redisDB string) error {
+
+	set.redisHost = redisHost
+	set.redisPasswd = redisPasswd
+	set.redisDB = redisDB
+
+	return nil
+}
+
+func (set *Setting) GetRedis() (string, string, string) {
+	return set.redisHost, set.redisPasswd, set.redisDB
 }
 
 // 获取 Serv 对象
