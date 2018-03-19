@@ -30,12 +30,12 @@ func BtHttpServ(filesManager *FilesManager) error {
 	HttpBtServMux.HandleFunc("/hello", httpBtHelloHandler)
 
 	// 通过创建分享任务
-	HttpBtServMux.HandleFunc("/api/share/resource", httpShareResourceHandler)
+	HttpBtServMux.HandleFunc("/api/resource/share", httpShareResourceHandler)
 
 	// HttpBtServMux.HandleFunc("/test", httpBtTestHandler)
 
 	// 提供文件分片下载服务
-	HttpBtServMux.HandleFunc("/api/download", httpBtDownloadHandler)
+	HttpBtServMux.HandleFunc("/api/resource/download", httpBtDownloadHandler)
 
 	httpBtServ := setting.AppSetting.GetBtServ()
 	log.Info(fmt.Sprintf("%s:%d", httpBtServ.Ip, httpBtServ.Port))
@@ -83,7 +83,7 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	destDownloadPath := values.Get("downloadpath")
 	if destDownloadPath == "" {
-		utils.CreateErrResp(w, &log, "destDownloadPath is empty")
+		utils.CreateErrResp(w, &log, "downloadpath is empty")
 		return
 	}
 
@@ -113,7 +113,7 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	torFile, err := ioutil.ReadAll(resp.Body)
+	result, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		utils.CreateErrResp(w,
 			&log,
@@ -122,9 +122,20 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	servResult := make(map[string]interface{})
+	if err := json.Unmarshal(servResult, &torrContent); err != nil {
+		log.Err(fmt.Sprintf("Parse json download torrent data fail"))
+		return "", "", err
+	}
+
+	// 1. 检查下载的结果
+	version := servResult["status"].(string)
+	torrent := servResult["torrent_content"].(string)
+	// json.Unmarshal()
+
 	// 2. 从 share 目录找到共享的文件
 	//	  创建本地共享文件
-	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, torFile)
+	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, torrent)
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", infoHash, err.Error()))
 		utils.CreateErrResp(w,
