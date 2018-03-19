@@ -28,7 +28,7 @@ type Setting struct {
 	trackerServ Serv
 
 	maxFileNum    uint // 并行管理的可以上传下载的文件数量，每个任务对应一个文件
-	maxTaskNum    uint // 下载单个文件对应的协程数量
+	maxTaskNum    int  // 下载单个文件对应的协程数量
 	maxMemPerTask uint // 每个上传下载任务可以使用的内存大小，单位：M
 }
 
@@ -62,7 +62,7 @@ func (set *Setting) GetMaxFileNum() uint {
 	return set.maxFileNum
 }
 
-func (set *Setting) GetTaskNumForFile() uint {
+func (set *Setting) GetTaskNumForFile() int {
 	return set.maxTaskNum
 }
 

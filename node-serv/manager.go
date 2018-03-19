@@ -77,6 +77,63 @@ func (filesMgr *FilesManager) CreateShareTask(torrent []byte) (string,
 	return filename, fileMd5, nil
 }
 
+func (filesMgr *FilesManager) CreateDownloadTask(
+	destDownloadPath string,
+	torrent []byte) (
+	string,
+	string,
+	error) {
+	// 创建日志记录器
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	// lock
+	filesMgr.lock.RLock()
+	// unlock
+	defer filesMgr.lock.RUnlock()
+
+	// 1. 解析元数据
+	torrContent := make(map[string]interface{})
+	if err := json.Unmarshal(torrent, &torrContent); err != nil {
+		log.Err(fmt.Sprintf("Parse json download torrent data fail"))
+		return "", "", err
+	}
+
+	version := torrContent["version"].(string)
+	fileMd5 := torrContent["file_md5"].(string)
+	filename := torrContent["filename"].(string)
+
+	if version != "1.0" {
+		errMsg := fmt.Sprintf("torrent file version error: %s", version)
+		log.Err(errMsg)
+		return "", "", errors.New(errMsg)
+	}
+
+	fileTasksMgr := FileTasksMgr{lock: sync.RWMutex{}}
+	filesMgr.fileTasksMgr = append(filesMgr.fileTasksMgr, fileTasksMgr)
+	err := fileTasksMgr.CreateDownloadFile(
+		setting.AppSetting.GetTaskNumForFile(),
+		fileMd5,
+		destDownloadPath,
+		torrent)
+	if err != nil {
+		log.Err(fmt.Sprintf("Create download file fail, %s", err.Error()))
+		return "", "", err
+	}
+
+	err = addToUvdtData(filename, fileMd5, "downloads")
+	if err != nil {
+		log.Err(fmt.Sprintf("Add to uvdt data fail, %s", err.Error()))
+		return "", "", err
+	}
+	log.Info(fmt.Sprintf("Task %s[%s] started, state: %s",
+		filename,
+		fileMd5,
+		"share"))
+
+	return filename, fileMd5, nil
+}
+
 func addToUvdtData(filename string, md5 string, filepath string) error {
 	// 创建日志记录器
 	log := logger.NewAgent()
