@@ -42,6 +42,7 @@ func InitDB(ipaddr string, user string, passwd string, dbname string) error {
 	} else {
 		DB = dbconn
 	}
+	dbconn.SetMaxIdleConns(0)
 	return nil
 }
 

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
-	"log"
 	"strings"
 )
 
@@ -159,7 +158,8 @@ func (info *Torrent) GetPeers(infoHash string) ([]string, error) {
 		for rows.Next() {
 			err = rows.Scan(&jsonPeers)
 			if err != nil {
-				return []string{}, err
+				break
+				// return []string{}, err
 			}
 			count += 1
 		}

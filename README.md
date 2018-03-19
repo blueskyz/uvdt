@@ -42,7 +42,7 @@ uvdt-node
 
 ## 3.1 tracker 服务器
 
-bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30080" -trackerserv "0.0.0.0:30081"
+bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30081" -trackerserv "0.0.0.0:30080" -db-passwd my-secret-pw --redis-passwd 1
 
 ## 3.2 node 服务器
 
