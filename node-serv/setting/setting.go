@@ -50,6 +50,14 @@ func (set *Setting) GetRootPath() string {
 	return set.rootPath
 }
 
+func (set *Setting) SetPeerId(peerId string) {
+	set.peerId = peerId
+}
+
+func (set *Setting) GetPeerId() string {
+	return set.peerId
+}
+
 // 设置日志文件路径
 func (set *Setting) SetLogFile(logFile string) {
 	set.logFile = logFile

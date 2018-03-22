@@ -4,6 +4,7 @@
 package nodeserv
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,13 +89,14 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 下载 torrent file
-	peer_id := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
+	// peerId := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
+	peerId := setting.AppSetting.GetPeerId()
 	serv := setting.AppSetting.GetTrackerServ()
 	url := fmt.Sprintf("http://%s:%d/torrent?infohash=%s&peer_id=%s&port=%d",
 		serv.Ip,
 		serv.Port,
 		infoHash,
-		peer_id,
+		peerId,
 		setting.AppSetting.GetBtServ().Port)
 	log.Info(url)
 	resp, err := http.Get(url)
@@ -123,19 +125,27 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	servResult := make(map[string]interface{})
-	if err := json.Unmarshal(servResult, &torrContent); err != nil {
+	if err := json.Unmarshal(result, &servResult); err != nil {
 		log.Err(fmt.Sprintf("Parse json download torrent data fail"))
-		return "", "", err
+		return
 	}
 
 	// 1. 检查下载的结果
 	version := servResult["status"].(string)
+	if version != "1.0" {
+		utils.CreateErrResp(w,
+			&log,
+			fmt.Sprintf("torrent version error. url: %s, version: %s",
+				url,
+				version))
+		return
+	}
 	torrent := servResult["torrent_content"].(string)
 	// json.Unmarshal()
 
 	// 2. 从 share 目录找到共享的文件
 	//	  创建本地共享文件
-	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, torrent)
+	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, []byte(torrent))
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", infoHash, err.Error()))
 		utils.CreateErrResp(w,
@@ -146,8 +156,8 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := map[string]interface{}{}
-	utils.CreateSuccResp(w, &log, "Create share file task succ.", result)
+	resultVal := map[string]interface{}{}
+	utils.CreateSuccResp(w, &log, "Create share file task succ.", resultVal)
 }
 
 /*
@@ -213,13 +223,14 @@ func httpShareResourceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. 上传共享文件 bt 元数据
-	peer_id := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
+	// peerId := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
+	peerId := setting.AppSetting.GetPeerId()
 	serv := setting.AppSetting.GetTrackerServ()
 	url := fmt.Sprintf("http://%s:%d/torrent?infohash=%s&peer_id=%s&port=%d",
 		serv.Ip,
 		serv.Port,
 		infohash,
-		peer_id,
+		peerId,
 		setting.AppSetting.GetBtServ().Port)
 	log.Info(url)
 	req, err := http.NewRequest("POST", url, strings.NewReader(string(torFile)))
