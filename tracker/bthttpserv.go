@@ -132,7 +132,7 @@ func btTorrentHandler(w http.ResponseWriter, r *http.Request) {
 	// 获取 peer id, ip, port 信息
 	peerId := values.Get("peer_id")
 	if !CheckHexdigest(peerId, 32) {
-		CreateErrResp(w, &log, "peer id's length is not 32")
+		CreateErrResp(w, &log, "peer id's length is not 32, peerId")
 		return
 	}
 

@@ -5,6 +5,7 @@
 package nodeserv
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/blueskyz/uvdt/logger"
 	"github.com/blueskyz/uvdt/node-serv/setting"
@@ -254,6 +256,11 @@ func (filesMgr *FilesManager) LoadDB() error {
 	uvdtJsonDataFile := path.Join(uvdtRootPath, "uvdt.dat")
 	if _, err := os.Stat(uvdtJsonDataFile); os.IsNotExist(err) {
 		log.Info(fmt.Sprintf("Create uvdt json data, %s", uvdtJsonDataFile))
+		// 1. 创建 peer_id
+		unixNano := time.Now().UnixNano()
+		micro_second := []byte(fmt.Sprintf("%d", unixNano))
+		peerId := fmt.Sprintf("%x", md5.Sum(micro_second))
+
 		// blob := `{"version": "v1.0", "fileslist": [{"filename": "test.txt", "md5": "xxx"}]}`
 		// blob := `{"version": "v1.0", "fileslist": []}`
 		/*
@@ -262,7 +269,10 @@ func (filesMgr *FilesManager) LoadDB() error {
 				"fileslist": [{"filename": "test.txt", "path":"share", "md5": "xxx"}]}`
 		*/
 		blob := `{"version": "v1.0",
+		"peerid": "%s",
 		"fileslist": []}`
+		blob = fmt.Sprintf(blob, peerId)
+		setting.AppSetting.SetPeerId(peerId)
 		f, err := os.OpenFile(uvdtJsonDataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			log.Err(fmt.Sprintf("Create uvdt json data fail, %s", uvdtJsonDataFile))
@@ -295,6 +305,7 @@ func (filesMgr *FilesManager) LoadDB() error {
 		return err
 	}
 	filesMgr.version = jsonMeta["version"].(string)
+	setting.AppSetting.SetPeerId(jsonMeta["peerid"].(string))
 
 	// 6. 创建 下载/共享 的文件管理器
 	filesList := jsonMeta["fileslist"].([]interface{})

@@ -109,11 +109,11 @@ func (creator *CreatorTorrent) calcFileMd5(filePath string) (int, string,
 	}
 	fileMd5 := fmt.Sprintf("%x", h.Sum(nil))
 
-	// 计算 512KB 一个分片的 md5
+	// 计算 2MB 一个分片的 md5
 	f.Seek(0, os.SEEK_SET)
 	fileInfo, _ := f.Stat()
 	fileSize := fileInfo.Size()
-	const fileChunk = 1 * (1 << 19)
+	const fileChunk = 1 * (1 << 21)
 	floatChunk := float64(fileSize) / float64(fileChunk)
 	totalPartsNum := uint64(math.Ceil(floatChunk))
 	partsMd5 := []string{}

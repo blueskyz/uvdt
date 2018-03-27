@@ -129,22 +129,26 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 		log.Err(fmt.Sprintf("Parse json download torrent data fail"))
 		return
 	}
+	// log.Info(string(result))
 
 	// 1. 检查下载的结果
-	version := servResult["status"].(string)
-	if version != "1.0" {
+	status := servResult["status"].(float64)
+	if status != 0 {
 		utils.CreateErrResp(w,
 			&log,
-			fmt.Sprintf("torrent version error. url: %s, version: %s",
+			fmt.Sprintf("download torrent status error. url: %s, status: %d",
 				url,
-				version))
+				status))
 		return
 	}
-	torrent := servResult["torrent_content"].(string)
+
+	servResultVal := servResult["result"].(map[string]interface{})
+	torrent := servResultVal["torrent_content"].(string)
 	// json.Unmarshal()
 
 	// 2. 从 share 目录找到共享的文件
 	//	  创建本地共享文件
+	log.Info(torrent)
 	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, []byte(torrent))
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", infoHash, err.Error()))
