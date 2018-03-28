@@ -239,31 +239,32 @@ type Worker struct {
 }
 
 func (w *Worker) Run() {
-	go func() {
-		log := logger.NewAgent()
-		defer log.EndLog()
+	log := logger.NewAgent()
+	defer log.EndLog()
 
-		for {
-			select {
-			case jobData := <-w.jobQueue: // 等待获取下载数据片段的任务
-				// 下载数据
-				w.lastDownloadBeginTime = time.Now()
-				time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-				log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
-				w.Download(jobData)
+	log.Info("start download goroutine ...")
 
-				// 写入存储数据的管道
-				w.dataQueue <- BlockData{workId: w.id,
-					pos:    jobData.pos,
-					length: jobData.length,
-					data:   []byte{}}
+	for {
+		select {
+		case jobData := <-w.jobQueue: // 等待获取下载数据片段的任务
+			// 下载数据
+			w.lastDownloadBeginTime = time.Now()
+			time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
+			log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
+			w.Download(jobData)
 
-			case _ = <-w.stop: // 停止工作
-				log.Info(fmt.Sprintf("Worker[%d] stop", w.id))
-				return
-			}
+			// 写入存储数据的管道
+			w.dataQueue <- BlockData{workId: w.id,
+				pos:    jobData.pos,
+				length: jobData.length,
+				data:   []byte{}}
+
+		case _ = <-w.stop: // 停止工作
+			log.Info(fmt.Sprintf("Worker[%d] stop", w.id))
+			return
 		}
-	}()
+		log.EndLog()
+	}
 }
 
 func (w *Worker) Stop() {
@@ -580,7 +581,9 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	}
 
 	for _, v := range ftMgr.downloadWkrs {
-		v.Run()
+		// for i, v := range ftMgr.downloadWkrs {
+		// log.Info(fmt.Sprintf("download file=%s, goroutine=%d", filePath, i))
+		go v.Run()
 	}
 
 	//
@@ -590,8 +593,10 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	// 创建保存数据的控制协程
 	ftMgr.stop = make(chan bool)
 	go func() {
-		log := logger.NewAgent()
-		defer log.EndLog()
+		logData := logger.NewAgent()
+		defer logData.EndLog()
+
+		logData.Info("start save data goroutine ...")
 
 		for {
 			select {
@@ -601,14 +606,17 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 			case blockData := <-ftMgr.dataQueue: // 等待获取下载数据片段的任务
 				// 下载数据
 				time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
-				log.Info(fmt.Sprintf("Worker[%d] do length %d", blockData.workId, blockData.length))
+				logData.Info(fmt.Sprintf("save data from worker[%d], length %d",
+					blockData.workId,
+					blockData.length))
 				jobQueue <- JobData{pos: 3, length: 1024}
 
 				// 写入文件
 			case _ = <-ftMgr.stop: // 停止工作
-				log.Info(fmt.Sprintf("Task stop"))
+				logData.Info(fmt.Sprintf("Task stop"))
 				return
 			}
+			logData.EndLog()
 		}
 	}()
 

@@ -70,4 +70,5 @@ func (logAgent *LogAgent) Err(msg string) error {
 func (logAgent *LogAgent) EndLog() {
 	msg := logAgent.status + strings.Join(logAgent.buffers, " | ")
 	Logger.Printf("%s\n", msg)
+	logAgent.buffers = []string{}
 }
