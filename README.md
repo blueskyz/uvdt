@@ -46,7 +46,12 @@ bin/uvdt-tracker -clusterip="192.168.2.1:3333" -btserv "0.0.0.0:30081" -trackers
 
 ## 3.2 node 服务器
 
+#### 第 1 个
 bin/uvdt-node -httpserv 0.0.0.0:8088 -rootpath ~/Downloads/movie
+
+#### 第 2 个
+bin/uvdt-node -httpserv 0.0.0.0:8089 -rootpath ~/Downloads/movie/test
+
 
 ## 3.3 node tool 创建种子文件工具
 

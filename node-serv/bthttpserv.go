@@ -148,7 +148,6 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 2. 从 share 目录找到共享的文件
 	//	  创建本地共享文件
-	log.Info(torrent)
 	_, infohash, err := btFilesMgr.CreateDownloadTask(destDownloadPath, []byte(torrent))
 	if err != nil {
 		log.Err(fmt.Sprintf("%s: %s", infoHash, err.Error()))

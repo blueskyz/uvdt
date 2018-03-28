@@ -117,9 +117,9 @@ func (fileMeta *FileMeta) SaveMetaFile(md5 string) error {
 		block := make(map[string]interface{})
 		block["md5"] = v.blockMd5
 		if v.blockStat == BS_COMPLETE {
-			block["blockstat"] = BS_COMPLETE
+			block["bk"] = BS_COMPLETE
 		} else {
-			block["blockstat"] = BS_UNDOWNLOAD
+			block["bk"] = BS_UNDOWNLOAD
 		}
 		blocksStat = append(blocksStat, block)
 	}
@@ -198,7 +198,7 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 		blockMeta := BlockMeta{}
 		block := v.(map[string]interface{})
 		blockMeta.blockMd5 = block["md5"].(string)
-		if int(block["blockstat"].(float64)) == 1 {
+		if int(block["bk"].(float64)) == 1 {
 			blockMeta.blockStat = BS_COMPLETE
 		} else {
 			blockMeta.blockStat = BS_UNDOWNLOAD

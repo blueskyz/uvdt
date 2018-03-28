@@ -101,9 +101,10 @@ func (filesMgr *FilesManager) CreateDownloadTask(
 		return "", "", err
 	}
 
+	log.Err(string(torrent))
 	version := torrContent["version"].(string)
 	fileMd5 := torrContent["file_md5"].(string)
-	filename := torrContent["filename"].(string)
+	filename := torrContent["file_name"].(string)
 
 	if version != "1.0" {
 		errMsg := fmt.Sprintf("torrent file version error: %s", version)
