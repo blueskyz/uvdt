@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"os"
 	"path"
 	"sync"
@@ -210,21 +212,31 @@ func (fileMeta *FileMeta) LoadMetaFile(md5 string) error {
 	return nil
 }
 
+// 下载任务结构
 type JobData struct {
 	pos    uint // 文件内位置
 	length uint // 数据长度
 }
 
+// 下载数据结构
 type BlockData struct {
 	workId int    // 执行下载任务的工作协程id
 	pos    uint   // 文件内位置
 	length uint   // 数据长度
 	data   []byte // 下载的数据内容
+	isErr  int    // 0: 成功，1: 失败
+}
+
+// peer 地址列表
+type Peers struct {
+	addr   string // ip:port
+	weight int    // 下载权重，-1: 不可用，0: 可用，>0 可用性增大 （需要换成优先队列）
 }
 
 // worker 定义执行具体的下载工作
 type Worker struct {
 	id       int
+	infoHash string // 文件 hash id
 	filePath string // 文件绝对路径
 
 	stop      chan bool      // 退出标志
@@ -236,6 +248,8 @@ type Worker struct {
 	totalDownload         int64     // 总共下载的数据量，单位字节
 	totalDownloadCost     int64     // 总共下载使用的时间
 	errorCount            int       // 下载出错的数量
+
+	peers []string // peer 地址列表，30 秒从 tracker 服务器获取一次
 }
 
 func (w *Worker) Run() {
@@ -247,32 +261,87 @@ func (w *Worker) Run() {
 	for {
 		select {
 		case jobData := <-w.jobQueue: // 等待获取下载数据片段的任务
+
 			// 下载数据
 			w.lastDownloadBeginTime = time.Now()
 			time.Sleep(time.Duration(rand.Int31n(1000)) * time.Millisecond)
-			log.Info(fmt.Sprintf("Worker[%d] do length %d", w.id, jobData.length))
-			w.Download(jobData)
+			blockData, _ := w.Download(&jobData)
 
 			// 写入存储数据的管道
-			w.dataQueue <- BlockData{workId: w.id,
-				pos:    jobData.pos,
-				length: jobData.length,
-				data:   []byte{}}
+			w.dataQueue <- blockData
 
 		case _ = <-w.stop: // 停止工作
 			log.Info(fmt.Sprintf("Worker[%d] stop", w.id))
 			return
 		}
-		log.EndLog()
 	}
+}
+
+/*
+ * 从 tracker 服务器获取 peers 列表
+ */
+func (w *Worker) GetPeersFromTracker() {
 }
 
 func (w *Worker) Stop() {
 	w.stop <- true
 }
 
-func (w *Worker) Download(jobData JobData) error {
-	return nil
+func (w *Worker) Download(jobData *JobData) (BlockData, error) {
+	log := logger.NewAgent()
+	defer log.EndLog()
+
+	log.Info(fmt.Sprintf("Worker[%d] is downloading data, infohash: %s, pos: %d, length: %d",
+		w.id,
+		w.infoHash,
+		jobData.pos,
+		jobData.length))
+
+	// 1. 下载数据块
+	peerId := setting.AppSetting.GetPeerId()
+	serv := setting.AppSetting.GetTrackerServ()
+	url := fmt.Sprintf("http://%s:%d/torrent?infohash=%s&peer_id=%s&port=%d",
+		serv.Ip,
+		serv.Port,
+		w.infoHash,
+		peerId,
+		setting.AppSetting.GetBtServ().Port)
+	log.Info(url)
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Err(fmt.Sprintf("Worker[%d] download %s fail, block: %d, err: %s",
+			w.id,
+			w.infoHash,
+			jobData.pos,
+			err.Error()))
+		return BlockData{isErr: 1}, errors.New("Worker download fail")
+	}
+	if resp.StatusCode != http.StatusOK {
+		log.Err(fmt.Sprintf("Worker[%d] download %s fail, block: %d, http status: %s",
+			w.id,
+			w.infoHash,
+			jobData.pos,
+			resp.StatusCode))
+		return BlockData{isErr: 1}, errors.New("Worker download fail")
+	}
+	defer resp.Body.Close()
+
+	result, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Err(fmt.Sprintf("Worker[%d] download %s read data block fail, block: %d, err: %s",
+			w.id,
+			w.infoHash,
+			jobData.pos,
+			err.Error()))
+		return BlockData{isErr: 1}, errors.New("Worker download fail")
+	}
+
+	// 组装数据
+	return BlockData{workId: w.id,
+		pos:    jobData.pos,
+		length: jobData.length,
+		data:   result,
+		isErr:  0}, nil
 }
 
 // ==========================================================================
@@ -574,6 +643,7 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 		ftMgr.downloadWkrs = append(ftMgr.downloadWkrs,
 			&Worker{
 				id:        i,
+				infoHash:  ftMgr.fileMeta.fileMd5,
 				filePath:  filePath,
 				stop:      make(chan bool),
 				jobQueue:  jobQueue,
@@ -593,25 +663,25 @@ func (ftMgr *FileTasksMgr) Start(maxDlThrNum int,
 	// 创建保存数据的控制协程
 	ftMgr.stop = make(chan bool)
 	go func() {
-		logData := logger.NewAgent()
-		defer logData.EndLog()
-
-		logData.Info("start save data goroutine ...")
+		log.Info("start save data goroutine ...")
 
 		for {
+			logData := logger.NewAgent()
+			defer logData.EndLog()
+
 			select {
 			case <-time.After(time.Second): // 超时, 判断是否需要添加下载数据任务队列中
 				jobQueue <- JobData{pos: 3, length: 1024}
 
 			case blockData := <-ftMgr.dataQueue: // 等待获取下载数据片段的任务
-				// 下载数据
+				// 1. 下载数据
 				time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
-				logData.Info(fmt.Sprintf("save data from worker[%d], length %d",
+				logData.Info(fmt.Sprintf("worker[%d] download data length: %d",
 					blockData.workId,
 					blockData.length))
 				jobQueue <- JobData{pos: 3, length: 1024}
 
-				// 写入文件
+				// 2. 写入文件
 			case _ = <-ftMgr.stop: // 停止工作
 				logData.Info(fmt.Sprintf("Task stop"))
 				return

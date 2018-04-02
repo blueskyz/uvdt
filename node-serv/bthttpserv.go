@@ -89,7 +89,6 @@ func httpBtDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. 下载 torrent file
-	// peerId := "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9"
 	peerId := setting.AppSetting.GetPeerId()
 	serv := setting.AppSetting.GetTrackerServ()
 	url := fmt.Sprintf("http://%s:%d/torrent?infohash=%s&peer_id=%s&port=%d",
